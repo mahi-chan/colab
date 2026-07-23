@@ -10,6 +10,17 @@ on:
   push:
     branches:
       - "claude/electrical-components-simulator-gnytc5"
+    # Only rebuild installers when app/desktop code changes — not for edits to
+    # the landing page or docs.
+    paths:
+      - "src/**"
+      - "app/**"
+      - "electron/**"
+      - "build/**"
+      - "package.json"
+      - "package-lock.json"
+      - "vite.config.ts"
+      - ".github/workflows/desktop-release.yml"
     tags:
       - "v*"
 
