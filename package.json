@@ -62,20 +62,25 @@
         "deb"
       ],
       "category": "Development",
-      "icon": "build/icon.png"
+      "icon": "build/icon.png",
+      "artifactName": "CircuitLab-linux-${arch}.${ext}"
     },
     "win": {
       "target": [
-        "nsis",
-        "portable"
+        {
+          "target": "nsis",
+          "arch": ["x64", "ia32"]
+        }
       ],
-      "icon": "build/icon.ico"
+      "icon": "build/icon.ico",
+      "artifactName": "CircuitLab-win-${arch}.${ext}"
     },
     "mac": {
       "target": [
         "dmg"
       ],
-      "icon": "build/icon.png"
+      "icon": "build/icon.png",
+      "artifactName": "CircuitLab-mac-${arch}.${ext}"
     },
     "nsis": {
       "oneClick": false,

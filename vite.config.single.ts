@@ -14,6 +14,10 @@ export default defineConfig({
     cssCodeSplit: false,
     assetsInlineLimit: 100000000,
     reportCompressedSize: false,
-    rollupOptions: { output: { inlineDynamicImports: true } },
+    rollupOptions: {
+      // Inline only the app entry (not the marketing landing page).
+      input: "app/index.html",
+      output: { inlineDynamicImports: true },
+    },
   },
 });

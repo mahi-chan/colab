@@ -35,9 +35,10 @@ function createWindow() {
   win.removeMenu();
 
   if (isDev) {
-    win.loadURL(DEV_URL);
+    win.loadURL(`${DEV_URL}/app/`);
   } else {
-    win.loadFile(path.join(__dirname, "..", "dist", "index.html"));
+    // The desktop app loads the app page directly (not the marketing landing).
+    win.loadFile(path.join(__dirname, "..", "dist", "app", "index.html"));
   }
 }
 

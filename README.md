@@ -16,10 +16,11 @@ The schematic (EDA) view and the simulation (SIM) view are two windows onto the
 
 ## Features
 
-- **One codebase, two targets** — a React + Vite frontend runs as the web app; a
-  thin [Tauri](https://tauri.app) shell wraps the identical frontend into a
-  native desktop app (Windows/macOS/Linux). Platform differences (file dialogs,
-  storage) hide behind a single `PlatformAdapter`.
+- **Website + app in one codebase** — a marketing landing page at `/` with
+  *Use online* and *Download* options, the React app at `/app/`, and a thin
+  [Electron](https://www.electronjs.org/) shell that wraps the identical app into
+  native Windows/Linux installers. Platform differences (file dialogs, storage)
+  hide behind a single `PlatformAdapter`.
 - **Component library / directory** — a searchable, categorized catalog. Every
   part is *data* (symbol + pins + parameters + a simulation model), so the
   library scales without bespoke code. Includes passives, sources, semiconductors,
@@ -39,18 +40,24 @@ The schematic (EDA) view and the simulation (SIM) view are two windows onto the
   (Blink, Button, Serial Hello) plus Intel-HEX loading.
 - **Persistence** — create / open / save projects (`.clab` JSON) with autosave.
 
-## Web version
+## The website
 
-Three ways to run it in a browser:
+The site is a product landing page (`/`) with **Use online** and **Download**
+buttons, plus the app itself at **`/app/`** — the same pattern apps like Figma or
+VS Code use. Downloads point at the repo's latest GitHub **Release** assets.
 
-- **Local dev:** `npm install && npm run dev` → http://localhost:5173.
-- **Standalone single file:** `npm run build:single` produces one self-contained
-  `dist-single/index.html` (all JS/CSS inlined, no server needed) — open it directly
-  in any browser or drop it on any static host.
-- **GitHub Pages:** `.github/workflows/web-deploy.yml` deploys on every push to
-  **https://mahi-chan.github.io/colab/**. One-time setup: repo **Settings → Pages →
-  Build and deployment → Source: “GitHub Actions”** (the CI token can’t enable Pages
-  itself), then re-run the *Deploy Web* workflow.
+Hosting (GitHub Pages): **https://mahi-chan.github.io/colab/** — landing —
+and **/colab/app/** — the app. Published by `.github/workflows/web-deploy.yml` on
+every push. One-time setup: repo **Settings → Pages → Build and deployment →
+Source: “GitHub Actions”** (the CI token can’t enable Pages itself), then re-run
+the *Deploy Web* workflow.
+
+Other ways to run the web app:
+
+- **Local dev:** `npm install && npm run dev` → http://localhost:5173/app/.
+- **Standalone single file:** `npm run build:single` → one self-contained
+  `dist-single/app/index.html` (all JS/CSS inlined) that opens in any browser with
+  no server, or drops onto any static host.
 
 ## Quick start (web)
 

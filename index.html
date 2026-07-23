@@ -3,12 +3,234 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="description" content="CircuitLab — integrated EDA + electronics simulation suite" />
-    <title>CircuitLab — EDA &amp; Simulation</title>
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <title>CircuitLab — Online EDA &amp; Circuit Simulator</title>
+    <meta
+      name="description"
+      content="Free online EDA and circuit simulator. Draw schematics, drop in an Arduino, write code, and watch it run — in your browser or as a desktop app for Windows and Linux."
+    />
+    <style>
+      :root {
+        --bg: #0e1116;
+        --bg2: #12161d;
+        --panel: #161b22;
+        --border: #242c39;
+        --text: #e6edf3;
+        --dim: #9aa7b8;
+        --faint: #6b7787;
+        --accent: #2f9bd8;
+        --accent2: #17b890;
+        --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      }
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      html { scroll-behavior: smooth; }
+      body {
+        background: var(--bg);
+        color: var(--text);
+        font-family: var(--font);
+        line-height: 1.6;
+        -webkit-font-smoothing: antialiased;
+      }
+      a { color: inherit; text-decoration: none; }
+      .wrap { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+
+      /* Nav */
+      header {
+        position: sticky; top: 0; z-index: 10;
+        background: rgba(14, 17, 22, 0.8);
+        backdrop-filter: blur(10px);
+        border-bottom: 1px solid var(--border);
+      }
+      .nav { display: flex; align-items: center; gap: 20px; height: 60px; }
+      .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 17px; letter-spacing: 0.01em; }
+      .logo { width: 26px; height: 26px; border-radius: 7px; background: linear-gradient(135deg, var(--accent), var(--accent2)); display: grid; place-items: center; color: #fff; }
+      .nav .links { display: flex; gap: 22px; margin-left: auto; align-items: center; color: var(--dim); font-size: 14px; }
+      .nav .links a:hover { color: var(--text); }
+      .btn {
+        display: inline-flex; align-items: center; gap: 8px;
+        padding: 9px 18px; border-radius: 8px; font-weight: 600; font-size: 14px;
+        border: 1px solid var(--border); background: var(--panel); color: var(--text);
+        cursor: pointer; transition: transform 0.1s, background 0.15s, border-color 0.15s;
+      }
+      .btn:hover { background: #1d2431; }
+      .btn.primary { background: linear-gradient(135deg, var(--accent), var(--accent2)); border: none; color: #fff; }
+      .btn.primary:hover { filter: brightness(1.08); }
+      .btn.big { padding: 13px 26px; font-size: 15px; border-radius: 10px; }
+
+      /* Hero */
+      .hero { padding: 84px 0 40px; text-align: center; }
+      .eyebrow {
+        display: inline-block; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase;
+        color: var(--accent2); border: 1px solid var(--border); border-radius: 999px; padding: 5px 14px; margin-bottom: 22px;
+      }
+      .hero h1 { font-size: clamp(30px, 5vw, 52px); line-height: 1.1; letter-spacing: -0.02em; font-weight: 800; }
+      .hero h1 .grad { background: linear-gradient(120deg, var(--accent), var(--accent2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+      .hero p.sub { max-width: 640px; margin: 20px auto 0; color: var(--dim); font-size: 18px; }
+      .cta { display: flex; gap: 14px; justify-content: center; margin-top: 32px; flex-wrap: wrap; }
+      .cta .note { color: var(--faint); font-size: 13px; margin-top: 14px; width: 100%; }
+
+      .shot { margin: 48px auto 0; max-width: 960px; }
+      .shot img {
+        width: 100%; border-radius: 12px; border: 1px solid var(--border);
+        box-shadow: 0 30px 80px -30px rgba(0,0,0,0.8);
+        display: block;
+      }
+      .shot .cap { text-align: center; color: var(--faint); font-size: 13px; margin-top: 12px; }
+
+      /* Sections */
+      section { padding: 64px 0; }
+      .section-head { text-align: center; margin-bottom: 44px; }
+      .section-head h2 { font-size: 30px; letter-spacing: -0.01em; }
+      .section-head p { color: var(--dim); margin-top: 10px; }
+
+      .features { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 18px; }
+      .card {
+        background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 24px;
+      }
+      .card .ico { width: 40px; height: 40px; border-radius: 10px; display: grid; place-items: center; font-size: 20px; background: #1d2431; margin-bottom: 14px; }
+      .card h3 { font-size: 16px; margin-bottom: 6px; }
+      .card p { color: var(--dim); font-size: 14px; }
+
+      /* Download */
+      .download { background: var(--bg2); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+      .dl-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 18px; }
+      .dl-card {
+        background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 24px; text-align: center;
+      }
+      .dl-card .os { font-size: 34px; margin-bottom: 8px; }
+      .dl-card h3 { font-size: 17px; margin-bottom: 4px; }
+      .dl-card .meta { color: var(--faint); font-size: 13px; margin-bottom: 16px; }
+      .dl-card .btns { display: flex; flex-direction: column; gap: 8px; }
+      .dl-note { text-align: center; color: var(--dim); margin-top: 28px; font-size: 14px; }
+      .dl-note a { color: var(--accent); font-weight: 600; }
+
+      footer { padding: 40px 0; color: var(--faint); font-size: 13px; }
+      .foot { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; align-items: center; }
+      .foot a { color: var(--dim); }
+      .foot a:hover { color: var(--text); }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
+    <header>
+      <div class="wrap nav">
+        <a class="brand" href="./"><span class="logo">◈</span> CircuitLab</a>
+        <nav class="links">
+          <a href="#features">Features</a>
+          <a href="#download">Download</a>
+          <a href="https://github.com/mahi-chan/colab" target="_blank" rel="noopener">GitHub</a>
+          <a class="btn primary" href="app/">Launch App</a>
+        </nav>
+      </div>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div class="wrap">
+          <span class="eyebrow">Free · Runs in your browser</span>
+          <h1>Design, simulate &amp; program<br /><span class="grad">electronics online</span></h1>
+          <p class="sub">
+            A web-based EDA and circuit simulator. Draw a schematic, drop in an Arduino, write code, and
+            watch it run — real firmware driving real components. Use it online, or install the desktop app.
+          </p>
+          <div class="cta">
+            <a class="btn primary big" href="app/">▶ Launch App — it's free</a>
+            <a class="btn big" href="#download">↓ Download for Desktop</a>
+            <div class="note">No sign-up. No install required. Your projects stay on your device.</div>
+          </div>
+          <div class="shot">
+            <img src="./screenshot-sim.png" alt="CircuitLab simulating an Arduino blinking an LED" />
+            <div class="cap">Live simulation — an Arduino Uno running real firmware, blinking an LED, with a working analog solver.</div>
+          </div>
+        </div>
+      </section>
+
+      <section id="features">
+        <div class="wrap">
+          <div class="section-head">
+            <h2>Everything in one place</h2>
+            <p>Schematic capture, simulation, and a microcontroller IDE — one project, two views.</p>
+          </div>
+          <div class="features">
+            <div class="card">
+              <div class="ico">✏️</div>
+              <h3>Schematic capture (EDA)</h3>
+              <p>Drag components onto the canvas, wire pin-to-pin with automatic nets, and catch mistakes with live ERC.</p>
+            </div>
+            <div class="card">
+              <div class="ico">⚡</div>
+              <h3>Real-time simulation</h3>
+              <p>An analog (MNA) solver computes node voltages and currents; LEDs glow, meters read, buttons respond.</p>
+            </div>
+            <div class="card">
+              <div class="ico">🔌</div>
+              <h3>Run real firmware</h3>
+              <p>Write Arduino code and run it on an emulated ATmega328P — actual compiled AVR, driving your circuit.</p>
+            </div>
+            <div class="card">
+              <div class="ico">📚</div>
+              <h3>Component library</h3>
+              <p>A searchable directory of parts — passives, sources, semiconductors, switches, logic, and an Arduino Uno.</p>
+            </div>
+          </div>
+          <div class="shot" style="margin-top: 44px;">
+            <img src="./screenshot-eda.png" alt="CircuitLab schematic editor with the component library" />
+            <div class="cap">The schematic editor with the component library and live electrical-rule checks.</div>
+          </div>
+        </div>
+      </section>
+
+      <section id="download" class="download">
+        <div class="wrap">
+          <div class="section-head">
+            <h2>Get the desktop app</h2>
+            <p>Native installers for Windows and Linux — or just use it online, no install needed.</p>
+          </div>
+          <div class="dl-grid">
+            <div class="dl-card">
+              <div class="os">🪟</div>
+              <h3>Windows</h3>
+              <div class="meta">Windows 10/11 · installer</div>
+              <div class="btns">
+                <a class="btn primary" href="https://github.com/mahi-chan/colab/releases/latest/download/CircuitLab-win-x64.exe">Download 64-bit (.exe)</a>
+                <a class="btn" href="https://github.com/mahi-chan/colab/releases/latest/download/CircuitLab-win-ia32.exe">Download 32-bit (.exe)</a>
+              </div>
+            </div>
+            <div class="dl-card">
+              <div class="os">🐧</div>
+              <h3>Linux</h3>
+              <div class="meta">x86-64 · AppImage or Debian</div>
+              <div class="btns">
+                <a class="btn primary" href="https://github.com/mahi-chan/colab/releases/latest/download/CircuitLab-linux-x64.AppImage">Download AppImage</a>
+                <a class="btn" href="https://github.com/mahi-chan/colab/releases/latest/download/CircuitLab-linux-x64.deb">Download .deb</a>
+              </div>
+            </div>
+            <div class="dl-card">
+              <div class="os">🌐</div>
+              <h3>No install</h3>
+              <div class="meta">Any modern browser</div>
+              <div class="btns">
+                <a class="btn primary" href="app/">Use it online</a>
+                <a class="btn" href="https://github.com/mahi-chan/colab/releases/latest">All downloads →</a>
+              </div>
+            </div>
+          </div>
+          <p class="dl-note">
+            Downloads are published from the repository's <a href="https://github.com/mahi-chan/colab/releases/latest" target="_blank" rel="noopener">latest release</a>.
+            Prefer not to install? <a href="app/">Launch the web app →</a>
+          </p>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <div class="wrap foot">
+        <div>© CircuitLab — an integrated EDA + electronics simulation suite.</div>
+        <div style="display: flex; gap: 18px;">
+          <a href="app/">Web app</a>
+          <a href="#download">Download</a>
+          <a href="https://github.com/mahi-chan/colab" target="_blank" rel="noopener">Source on GitHub</a>
+        </div>
+      </div>
+    </footer>
   </body>
 </html>
