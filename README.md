@@ -58,20 +58,42 @@ npm test           # unit tests (netlist, MNA solver, ERC, end-to-end blink)
 npm run preview    # preview the production build
 ```
 
-## Desktop (Tauri)
+## Desktop (Windows & Linux)
 
-The desktop app reuses the exact web frontend. You need the
-[Rust toolchain](https://www.rust-lang.org/tools/install) and your platform's
-Tauri prerequisites (e.g. `webkit2gtk` on Linux).
+The desktop app is [Electron](https://www.electronjs.org/) wrapping the exact
+same web frontend — no Rust, no system webview needed, just Node.
+
+**Run it locally (any OS):**
 
 ```bash
-npm run tauri dev     # run the desktop app against the dev server
-npm run tauri build   # produce native installers
+npm install
+npm run electron:dev       # launches the desktop app against the dev server
 ```
 
-Native open/save go through Rust commands in `src-tauri/src/lib.rs`. To
-regenerate the full cross-platform icon set from one source image:
-`npm run tauri icon path/to/icon.png`.
+**Build installers for your machine:**
+
+```bash
+npm run dist:linux         # -> release/CircuitLab-*.AppImage, *.deb
+npm run dist:win           # -> release/CircuitLab Setup *.exe, portable *.exe  (run on Windows)
+npm run dist               # build for the current OS
+```
+
+Native **Open/Save** go through Electron IPC in `electron/main.cjs`
+(`open-project` / `save-project`), exposed to the renderer by the preload bridge
+in `electron/preload.cjs`.
+
+**Prebuilt binaries via CI (no toolchain needed).** The
+`.github/workflows/desktop-release.yml` workflow builds **Windows and Linux**
+installers on native GitHub runners. Trigger it from the repo's **Actions →
+Desktop Release → Run workflow**, or push a version tag:
+
+```bash
+git tag v0.1.0 && git push origin v0.1.0   # builds installers + attaches them to a GitHub Release
+```
+
+Download the `circuitlab-win` / `circuitlab-linux` artifacts from the run (or the
+Release assets for a tag). This is the recommended way to get a Windows `.exe`
+without a Windows machine.
 
 ## Architecture
 
@@ -90,10 +112,12 @@ src/
       examples.ts       verified precompiled example firmwares
     platform/           PlatformAdapter interface
   platform-web/         web adapter (File System Access API + localStorage)
-  platform-desktop/     Tauri adapter (native dialogs via invoke)
+  platform-desktop/     Electron adapter (native dialogs via IPC bridge)
   store/                Zustand stores (project + simulation runtime)
   ui/                   App shell, LibraryBrowser, canvas, EDA/SIM panels, editor
-src-tauri/              Tauri desktop shell (Rust)
+electron/               Electron main + preload (desktop shell)
+build/                  app icons (icon.png, icon.ico)
+.github/workflows/      cross-platform desktop build (Windows + Linux)
 ```
 
 The `Chip` interface keeps microcontrollers pluggable, and the same netlist feeds

@@ -1,17 +1,22 @@
 /**
- * Platform selection. Detects the Tauri desktop shell and loads the desktop
- * adapter; otherwise uses the web adapter. Both satisfy PlatformAdapter, so the
- * rest of the app is identical on web and desktop.
+ * Platform selection. Detects the Electron desktop shell (via the preload bridge
+ * or the Electron user-agent) and loads the desktop adapter; otherwise uses the
+ * web adapter. Both satisfy PlatformAdapter, so the rest of the app is identical
+ * on web and desktop.
  */
 import type { PlatformAdapter } from "./core/platform/PlatformAdapter";
 import { WebPlatform } from "./platform-web/webPlatform";
 
-function isTauri(): boolean {
-  return typeof window !== "undefined" && ("__TAURI_INTERNALS__" in window || "__TAURI__" in window);
+function isDesktop(): boolean {
+  if (typeof window === "undefined") return false;
+  const hasBridge = "circuitlab" in window;
+  const isElectronUa =
+    typeof navigator !== "undefined" && /Electron/i.test(navigator.userAgent);
+  return hasBridge || isElectronUa;
 }
 
 export async function getPlatform(): Promise<PlatformAdapter> {
-  if (isTauri()) {
+  if (isDesktop()) {
     try {
       const mod = await import("./platform-desktop/desktopPlatform");
       return new mod.DesktopPlatform();

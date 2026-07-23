@@ -6,9 +6,8 @@ dist/
 dist-ssr/
 *.local
 
-# Tauri / Rust build artifacts
-src-tauri/target/
-src-tauri/gen/
+# Electron packaging output
+release/
 
 # Editor / OS
 .vscode/*
