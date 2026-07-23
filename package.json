@@ -3,6 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "description": "Integrated EDA + electronics simulation suite (web + desktop), PCBX-style.",
+  "author": {
+    "name": "CircuitLab",
+    "email": "circuitlab@users.noreply.github.com"
+  },
   "type": "module",
   "main": "electron/main.cjs",
   "scripts": {
