@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+
+# uv
+uv.lock
+
+# Local MCP state / secrets — never commit these
+.thesis-mcp/
+kaggle.json
+.kaggle/
+.env
+*.local
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/

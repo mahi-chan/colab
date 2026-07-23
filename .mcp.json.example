@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "thesis": {
+      "command": "uv",
+      "args": ["run", "thesis-mcp"],
+      "env": {
+        "JUPYTER_URL": "${JUPYTER_URL}",
+        "JUPYTER_TOKEN": "${JUPYTER_TOKEN}"
+      }
+    }
+  }
+}
