@@ -1,12 +1,15 @@
 name: Desktop Release
 
 # Builds the CircuitLab desktop app for Windows and Linux on native runners
-# (no wine / no cross-compilation) and uploads the installers as artifacts.
-# Run it from the Actions tab ("Run workflow"), or push a tag like v0.1.0.
+# (no wine / no cross-compilation), then publishes the installers as a GitHub
+# Release so the website's Download buttons resolve. Runs on a push to the
+# working branch, on a version tag, or manually from the Actions tab.
 
 on:
   workflow_dispatch:
   push:
+    branches:
+      - "claude/electrical-components-simulator-gnytc5"
     tags:
       - "v*"
 
@@ -56,10 +59,12 @@ jobs:
             release/*.exe
           if-no-files-found: warn
 
-  # When triggered by a version tag, publish the installers as a GitHub Release.
-  # always() so a hiccup on one platform still releases the others' installers.
+  # Publish the installers as a GitHub Release. On a tag it uses that tag; on a
+  # branch push it (re)publishes the rolling v0.1.0 release marked "latest", so
+  # the website's releases/latest/download/... links always resolve. always() so
+  # a hiccup on one platform still ships the other's installers.
   release:
-    if: ${{ always() && startsWith(github.ref, 'refs/tags/v') }}
+    if: ${{ always() && github.event_name != 'pull_request' }}
     needs: build
     runs-on: ubuntu-latest
     permissions:
@@ -68,8 +73,12 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
-      - name: Create GitHub Release
+      - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v0.1.0' }}
+          name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'CircuitLab v0.1.0' }}
+          target_commitish: ${{ github.sha }}
+          make_latest: true
           files: artifacts/**/*
           generate_release_notes: true
