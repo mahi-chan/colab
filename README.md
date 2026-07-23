@@ -39,6 +39,12 @@ The schematic (EDA) view and the simulation (SIM) view are two windows onto the
   (Blink, Button, Serial Hello) plus Intel-HEX loading.
 - **Persistence** — create / open / save projects (`.clab` JSON) with autosave.
 
+## Live web app
+
+Hosted on GitHub Pages: **https://mahi-chan.github.io/colab/** (published by
+`.github/workflows/web-deploy.yml` on every push; enable Pages → “GitHub Actions”
+in the repo settings if the first deploy needs it).
+
 ## Quick start (web)
 
 ```bash
