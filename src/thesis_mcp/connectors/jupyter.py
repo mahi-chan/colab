@@ -15,6 +15,7 @@ It is intentionally dependency-light (``requests`` + ``websocket-client``) so th
 import base64
 import datetime as _dt
 import json
+import posixpath
 import ssl
 import uuid
 from dataclasses import dataclass, field
@@ -59,9 +60,11 @@ class JupyterClient:
 
     # -- configuration ------------------------------------------------------
     def configure(self, url: str, token: str) -> None:
-        self.base_url = url.rstrip("/")
+        url = url.rstrip("/")
+        if url != self.base_url:
+            self.kernel_id = ""  # kernel ids are per-server
+        self.base_url = url
         self.token = token
-        self.kernel_id = ""
 
     @property
     def connected(self) -> bool:
@@ -81,7 +84,11 @@ class JupyterClient:
 
     # -- kernel lifecycle ---------------------------------------------------
     def start_kernel(self) -> str:
-        r = requests.post(self._api("/api/kernels"), headers=self._headers, timeout=30)
+        # path="" starts the kernel in the server's root_dir (without it, the kernel
+        # inherits the server process's cwd), so kernel-relative paths and Contents-API
+        # paths refer to the same files.
+        r = requests.post(self._api("/api/kernels"), headers=self._headers,
+                          json={"path": ""}, timeout=30)
         r.raise_for_status()
         self.kernel_id = r.json()["id"]
         return self.kernel_id
@@ -103,6 +110,13 @@ class JupyterClient:
         if self.kernel_alive():
             return self.kernel_id
         return self.start_kernel()
+
+    def interrupt_kernel(self) -> None:
+        try:
+            requests.post(self._api(f"/api/kernels/{self.kernel_id}/interrupt"),
+                          headers=self._headers, timeout=30)
+        except requests.RequestException:
+            pass
 
     def _ws_url(self) -> str:
         base = self._api(f"/api/kernels/{self.kernel_id}/channels")
@@ -145,15 +159,14 @@ class JupyterClient:
         res = ExecResult()
         import time as _time
 
-        deadline = _time.time() + timeout
-        try:
-            ws.send(json.dumps(request))
-            while _time.time() < deadline:
+        def _pump(until: float) -> bool:
+            """Read replies to our request until the kernel goes idle (True) or ``until``."""
+            while _time.time() < until:
                 try:
-                    ws.settimeout(max(1.0, deadline - _time.time()))
+                    ws.settimeout(max(1.0, until - _time.time()))
                     raw = ws.recv()
                 except WebSocketTimeoutException:
-                    break
+                    return False
                 if not raw:
                     continue
                 msg = json.loads(raw)
@@ -174,8 +187,23 @@ class JupyterClient:
                         res.results.append(data["text/plain"])
                 elif mtype == "error":
                     res.error = "\n".join(content.get("traceback", [])) or content.get("evalue")
+                elif mtype == "execute_reply" and content.get("status") == "aborted":
+                    res.error = res.error or "Execution aborted by the kernel (a previous cell errored or was interrupted); retry."
                 elif mtype == "status" and content.get("execution_state") == "idle":
-                    break
+                    return True
+            return False
+
+        try:
+            ws.send(json.dumps(request))
+            if not _pump(_time.time() + timeout):
+                # Don't leave the kernel busy: every later tool call would queue behind
+                # the still-running code and time out too. Interrupt, then wait for the
+                # interrupted cell to settle so the next request isn't aborted.
+                self.interrupt_kernel()
+                _pump(_time.time() + 15)
+                timeout_msg = (f"Execution timed out after {timeout}s; the kernel was interrupted. "
+                               "Use launch_training for long-running work.")
+                res.error = f"{res.error}\n{timeout_msg}" if res.error else timeout_msg
         finally:
             try:
                 ws.close()
@@ -184,7 +212,19 @@ class JupyterClient:
         return res
 
     # -- files (Contents API) ----------------------------------------------
+    def ensure_dir(self, remote_dir: str) -> None:
+        """Create ``remote_dir`` and its parents (the Contents API won't write into a missing dir)."""
+        parts = [p for p in remote_dir.strip("/").split("/") if p]
+        for i in range(1, len(parts) + 1):
+            sub = "/".join(parts[:i])
+            url = self._api(f"/api/contents/{sub}")
+            if requests.get(url, headers=self._headers, params={"content": 0}, timeout=30).ok:
+                continue
+            r = requests.put(url, headers=self._headers, json={"type": "directory"}, timeout=30)
+            r.raise_for_status()
+
     def upload_bytes(self, remote_path: str, data: bytes) -> Dict[str, Any]:
+        self.ensure_dir(posixpath.dirname(remote_path.lstrip("/")))
         payload = {
             "type": "file",
             "format": "base64",
@@ -221,6 +261,7 @@ class JupyterClient:
         return r.json()["content"]
 
     def notebook_put(self, remote_path: str, nb: Dict[str, Any]) -> Dict[str, Any]:
+        self.ensure_dir(posixpath.dirname(remote_path.lstrip("/")))
         payload = {"type": "notebook", "format": "json", "content": nb}
         r = requests.put(
             self._api(f"/api/contents/{remote_path.lstrip('/')}"),

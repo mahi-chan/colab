@@ -11,7 +11,7 @@
 # os.environ["KAGGLE_USERNAME"] = "your_username"
 # os.environ["KAGGLE_KEY"]      = "your_key"
 
-import os, re, secrets, subprocess, time, urllib.request
+import os, re, secrets, shutil, subprocess, time, urllib.request
 
 TOKEN = secrets.token_hex(16)
 PORT = 8888
@@ -37,7 +37,7 @@ _JUPYTER = subprocess.Popen(
         "--ServerApp.allow_origin=*",
         "--ServerApp.allow_remote_access=True",
         "--ServerApp.disable_check_xsrf=True",
-        "--no-browser", "--ServerApp.root_dir=/content",
+        "--no-browser", "--allow-root", "--ServerApp.root_dir=/content",
     ],
     stdout=open("/content/jupyter.log", "w"), stderr=subprocess.STDOUT,
 )
@@ -51,26 +51,30 @@ for _ in range(30):
             break
     except Exception:
         time.sleep(1)
+if _JUPYTER.poll() is not None:
+    raise RuntimeError("jupyter server exited — see /content/jupyter.log")
 
-# 4. Start the tunnel and grab the public URL
+# 4. Start the tunnel and grab the public URL. Its output goes to a file (not a
+#    pipe): an unread pipe fills up during a long session and stalls the tunnel.
+TUNNEL_LOG = "/content/cloudflared.log"
 _TUNNEL = subprocess.Popen(
     [CF, "tunnel", "--url", f"http://localhost:{PORT}", "--no-autoupdate"],
-    stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1,
+    stdout=open(TUNNEL_LOG, "w"), stderr=subprocess.STDOUT,
 )
 URL = None
-_t0 = time.time()
-for line in _TUNNEL.stdout:
-    m = re.search(r"https://[a-z0-9-]+\.trycloudflare\.com", line)
+for _ in range(90):
+    m = re.search(r"https://(?!api\.)[a-z0-9-]+\.trycloudflare\.com", open(TUNNEL_LOG).read())
     if m:
         URL = m.group(0)
         break
-    if time.time() - _t0 > 90:
-        break
+    time.sleep(1)
+if URL is None:
+    raise RuntimeError(f"tunnel did not come up within 90s — see {TUNNEL_LOG}")
 
 gpu = subprocess.run(
     ["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"],
     capture_output=True, text=True,
-).stdout.strip()
+).stdout.strip() if shutil.which("nvidia-smi") else ""
 
 print("\n" + "=" * 60)
 print("thesis-mcp runtime is UP" + (f"  ·  GPU: {gpu}" if gpu else "  ·  (no GPU — set Runtime type to GPU!)"))

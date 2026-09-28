@@ -10,6 +10,7 @@ are written to a per-run directory so a dropped connection never loses progress.
 import json
 import os
 import posixpath
+import shlex
 
 from mcp.server.fastmcp import Image
 
@@ -47,24 +48,70 @@ def _img_from_bytes(data: bytes, ext: str = "png") -> Image:
     return Image(data=data, format=fmt)
 
 
+# Remote snippet: defines _pid_alive(pid). The training process is a child of the
+# kernel, so once it exits it lingers as a zombie that os.kill(pid, 0) still reports
+# as alive; reap it (or check /proc state) so finished runs read as finished.
+PID_ALIVE_SNIPPET = '''\
+import os as _os
+def _pid_alive(pid):
+    try:
+        if _os.waitpid(pid, _os.WNOHANG)[0] == pid:
+            return False
+    except ChildProcessError:
+        pass
+    except OSError:
+        pass
+    try:
+        _os.kill(pid, 0)
+    except OSError:
+        return False
+    try:
+        with open(f"/proc/{pid}/stat") as _f:
+            return _f.read().rsplit(")", 1)[1].split()[0] != "Z"
+    except OSError:
+        return True
+'''
+
+
 def launch_impl(script: str, run_name: str, requirements: str = "", env: dict = None):
     """Shared launcher used by launch_training and by rl_seed_sweep.
 
     Returns (ok: bool, run_dir: str, message: str).
     """
     run_dir = posixpath.join(rs.run_root(), run_name)
-    rs.store.new_run(run_name, run_dir)
     full = TRAIN_PREAMBLE + "\n# ---- user script ----\n" + script
 
-    rs.jupyter.execute(
-        f"import os;os.makedirs(os.path.join({run_dir!r},'checkpoints'), exist_ok=True)",
+    # Refuse to clobber a run that is still alive under the same name, and clear the
+    # previous attempt's metrics/log so curves don't mix two runs (checkpoints are kept).
+    prep = rs.jupyter.execute(
+        PID_ALIVE_SNIPPET
+        + f"import os\nrd = {run_dir!r}\n"
+        "os.makedirs(os.path.join(rd,'checkpoints'), exist_ok=True)\n"
+        "pid = None\n"
+        "try:\n    pid = int(open(os.path.join(rd,'pid')).read().strip())\nexcept Exception:\n    pass\n"
+        "if pid is not None and _pid_alive(pid):\n    print('BUSY', pid)\n"
+        "else:\n"
+        "    for f in ('metrics.jsonl', 'run.log', 'pid'):\n"
+        "        try:\n            os.remove(os.path.join(rd, f))\n"
+        "        except FileNotFoundError:\n            pass\n"
+        "    print('READY')\n",
         timeout=30,
     )
+    if prep.error:
+        return False, run_dir, prep.error
+    if "BUSY" in prep.text:
+        return False, run_dir, (f"run '{run_name}' is still running ({prep.text.strip()}); "
+                                "stop_run it first or pick another run_name.")
+
+    rs.store.new_run(run_name, run_dir)
     rs.jupyter.upload_bytes(rs.to_rel(posixpath.join(run_dir, "train.py")), full.encode())
 
-    setup = ""
+    # pip install runs inside the background job (not in the kernel), so a slow
+    # install can't hit the tool timeout; its output lands in run.log.
+    cmd = "exec python -u train.py"
     if requirements.strip():
-        setup = f"subprocess.run('pip -q install {requirements.strip()}'.split(), check=False)\n"
+        pkgs = " ".join(shlex.quote(p) for p in shlex.split(requirements))
+        cmd = f"pip -q install {pkgs}; " + cmd
     env_lines = ""
     for k, v in (env or {}).items():
         env_lines += f"env[{k!r}] = {str(v)!r}\n"
@@ -73,16 +120,17 @@ def launch_impl(script: str, run_name: str, requirements: str = "", env: dict = 
         "import os, subprocess\n"
         f"RUN_DIR = {run_dir!r}\n"
         "os.makedirs(os.path.join(RUN_DIR,'checkpoints'), exist_ok=True)\n"
-        f"{setup}"
         "env = dict(os.environ); env['THESIS_RUN_DIR'] = RUN_DIR\n"
         f"{env_lines}"
         "logf = open(os.path.join(RUN_DIR,'run.log'), 'w')\n"
-        "p = subprocess.Popen(['python','-u','train.py'], cwd=RUN_DIR, "
-        "stdout=logf, stderr=subprocess.STDOUT, env=env)\n"
+        # start_new_session: a kernel interrupt/restart (signals the kernel's process
+        # group) must not kill the background training job.
+        f"p = subprocess.Popen(['bash','-c',{cmd!r}], cwd=RUN_DIR, "
+        "stdout=logf, stderr=subprocess.STDOUT, env=env, start_new_session=True)\n"
         "open(os.path.join(RUN_DIR,'pid'),'w').write(str(p.pid))\n"
         "print('LAUNCHED_PID', p.pid)\n"
     )
-    res = rs.jupyter.execute(launcher, timeout=120)
+    res = rs.jupyter.execute(launcher, timeout=60)
     if res.error:
         rs.store.update_run(run_name, status="failed_launch")
         return False, run_dir, res.error
@@ -101,7 +149,7 @@ def register(mcp):
         it re-attaches to an already-running kernel when one exists.
         """
         if url:
-            rs.jupyter.configure(url, token)
+            rs.jupyter.configure(url, token or config.JUPYTER_TOKEN)
         if not rs.jupyter.connected:
             return ("No runtime configured. Run the bootstrap cell in Colab/Kaggle, then "
                     "either call connect_runtime(url='https://...trycloudflare.com', token='...') "
@@ -113,15 +161,16 @@ def register(mcp):
             "else ('/kaggle/working' if os.path.isdir('/kaggle/working') else os.getcwd()))",
             timeout=30,
         )
-        croot = (detect.text.strip().splitlines() or ["/content"])[-1]
-        rroot = posixpath.join(croot, "thesis_runs")
+        croot = config.CONTENTS_ROOT or (detect.text.strip().splitlines() or ["/content"])[-1]
+        rroot = config.RUN_ROOT or posixpath.join(croot, "thesis_runs")
         rs.store.save_kernel(url=rs.jupyter.base_url, kernel_id=kid,
                              contents_root=croot, run_root=rroot)
         rs.jupyter.execute(f"import os;os.makedirs({rroot!r}, exist_ok=True)", timeout=30)
         gpu = rs.jupyter.execute(
-            "import subprocess;print(subprocess.run("
-            "['nvidia-smi','--query-gpu=name,memory.total','--format=csv,noheader'],"
-            "capture_output=True,text=True).stdout.strip() or 'no GPU visible')",
+            "import subprocess, shutil\n"
+            "print((subprocess.run(['nvidia-smi','--query-gpu=name,memory.total','--format=csv,noheader'],"
+            "capture_output=True,text=True).stdout.strip() if shutil.which('nvidia-smi') else '') "
+            "or 'no GPU visible')",
             timeout=30,
         )
         verb = "Re-attached to" if reused else "Started"
@@ -142,7 +191,8 @@ def register(mcp):
             "except Exception as e:\n    print('torch not installed')\n"
             "print('cwd', os.getcwd())\n"
             "g = subprocess.run(['nvidia-smi','--query-gpu=name,utilization.gpu,memory.used,memory.total',"
-            "'--format=csv,noheader'],capture_output=True,text=True).stdout.strip()\n"
+            "'--format=csv,noheader'],capture_output=True,text=True).stdout.strip() "
+            "if shutil.which('nvidia-smi') else ''\n"
             "print('gpu', g or 'none')\n"
             "du = shutil.disk_usage(os.getcwd()); print('disk_free_GB', round(du.free/1e9,1))\n"
         )
@@ -227,11 +277,10 @@ def register(mcp):
             return f"No run named '{run_name}'. Known: {[r['name'] for r in rs.store.list_runs()]}"
         rd = run["dir"]
         code = (
-            f"import os\nrd = {rd!r}\npid = None\n"
+            PID_ALIVE_SNIPPET
+            + f"import os\nrd = {rd!r}\npid = None\n"
             "try:\n    pid = int(open(os.path.join(rd,'pid')).read().strip())\nexcept Exception:\n    pass\n"
-            "alive = False\n"
-            "if pid is not None:\n"
-            "    try:\n        os.kill(pid, 0); alive = True\n    except OSError:\n        alive = False\n"
+            "alive = pid is not None and _pid_alive(pid)\n"
             "mp = os.path.join(rd,'metrics.jsonl')\n"
             "rows = sum(1 for _ in open(mp)) if os.path.exists(mp) else 0\n"
             "last = list(open(mp))[-1].strip() if rows else ''\n"
@@ -288,7 +337,7 @@ def register(mcp):
         code = (
             f"import os, signal\nrd = {rd!r}\n"
             "try:\n    pid = int(open(os.path.join(rd,'pid')).read().strip())\n"
-            "    os.kill(pid, signal.SIGTERM); print('SENT SIGTERM to', pid)\n"
+            "    try:\n        os.killpg(pid, signal.SIGTERM)\n    except OSError:\n        os.kill(pid, signal.SIGTERM)\n    print('SENT SIGTERM to', pid)\n"
             "except Exception as e:\n    print('could not stop:', e)\n"
         )
         rs.store.update_run(run_name, status="stopped")
@@ -322,7 +371,7 @@ def register(mcp):
             "if os.path.exists(os.path.join(rd,'metrics.jsonl')) else []\n"
             "plt.figure(figsize=(7,4))\n"
             "for k in keys:\n"
-            "    pts = [(r.get('step', i), r[k]) for i, r in enumerate(rows) if r.get(k) is not None]\n"
+            "    pts = [((r['step'] if r.get('step') is not None else i), r[k]) for i, r in enumerate(rows) if r.get(k) is not None]\n"
             "    if pts:\n        xs, ys = zip(*pts); plt.plot(xs, ys, label=k, marker='.')\n"
             "plt.legend(); plt.xlabel('step'); plt.title(" f"{run_name!r}" "); plt.grid(alpha=0.3)\n"
             f"plt.savefig({out_abs!r}, dpi=120, bbox_inches='tight'); print('rows', len(rows))\n"

@@ -60,7 +60,7 @@ def register(mcp):
             "keys = [k for k in cand if any(k in r for r in rows)]\n"
             "fig, ax = plt.subplots(1, 2, figsize=(11,4))\n"
             "for k in keys:\n"
-            "    pts = [(r.get('step', i), r[k]) for i, r in enumerate(rows) if r.get(k) is not None]\n"
+            "    pts = [((r['step'] if r.get('step') is not None else i), r[k]) for i, r in enumerate(rows) if r.get(k) is not None]\n"
             "    if not pts:\n        continue\n"
             "    xs, ys = zip(*pts); a = ax[0] if 'loss' in k else ax[1]; a.plot(xs, ys, label=k)\n"
             "ax[0].set_title('loss'); ax[1].set_title('metrics')\n"

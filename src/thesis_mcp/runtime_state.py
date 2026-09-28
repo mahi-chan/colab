@@ -16,10 +16,14 @@ store = RunStore(config.STATE_DIR)
 # Re-hydrate the connection remembered from a previous session. The token is
 # never persisted (secrets stay in env), so it always comes from the environment.
 _saved = store.get_kernel()
+# A freshly exported JUPYTER_URL (new VM / new tunnel) must win over the remembered
+# one; the remembered kernel id is only meaningful for the URL it was saved with.
+_url = config.JUPYTER_URL or _saved.get("url") or ""
+_same_server = _url.rstrip("/") == (_saved.get("url") or "").rstrip("/")
 jupyter = JupyterClient(
-    url=_saved.get("url") or config.JUPYTER_URL,
+    url=_url,
     token=config.JUPYTER_TOKEN,
-    kernel_id=_saved.get("kernel_id", ""),
+    kernel_id=_saved.get("kernel_id", "") if _same_server else "",
 )
 
 

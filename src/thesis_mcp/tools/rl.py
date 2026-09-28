@@ -50,7 +50,7 @@ def register(mcp):
             "keys = [k for k in cand if any(k in r for r in rows)]\n"
             "plt.figure(figsize=(7,4))\n"
             "for k in keys:\n"
-            "    pts = [(r.get('step', i), r[k]) for i, r in enumerate(rows) if r.get(k) is not None]\n"
+            "    pts = [((r['step'] if r.get('step') is not None else i), r[k]) for i, r in enumerate(rows) if r.get(k) is not None]\n"
             "    if pts:\n        xs, ys = zip(*pts); plt.plot(xs, ys, label=k)\n"
             "plt.legend(); plt.xlabel('step'); plt.ylabel('reward'); plt.grid(alpha=0.3)\n"
             f"plt.title('reward: ' + {run_name!r})\n"
