@@ -11,13 +11,16 @@ Pick one, depending on what the user is using:
 
 | Where | How |
 |-------|-----|
-| Colab / Kaggle (free) | The user runs `runtime/colab_bootstrap.py` or `runtime/kaggle_bootstrap.py` in a cell and exports `JUPYTER_URL` / `JUPYTER_TOKEN`. Call **`connect_runtime`**. |
+| Kaggle (free) | **`kaggle_runtime_start`**, then **`connect_runtime`** (repeat until it is up). Automatic once the user has run `thesis-mcp login kaggle`. |
+| Colab (free) | **`colab_runtime_start`** returns one line; the user runs it in a Colab cell; then **`connect_runtime`**. Nothing is copied back. |
 | Hugging Face, interactive (paid) | **`hf_runtime_start(flavor, timeout)`**, then **`hf_runtime_connect`** (repeat until ready). **`hf_runtime_stop`** when done. |
 | Hugging Face, one training per machine (paid) | **`hf_job_launch(script, run_name, flavor, timeout)`**. No runtime needed. |
 | A JupyterLab Space the user already has | `connect_runtime(url, token, hf_auth=True)`. |
 
-`connect_runtime` and `hf_runtime_connect` re-attach to a kernel that is still running,
-so after `/clear` call the right one again and carry on. `runtime_status` confirms the GPU.
+`connect_runtime` (no arguments) and `hf_runtime_connect` re-attach to a runtime that is
+still up, so after `/clear` call the right one again and carry on. `runtime_status`
+confirms the GPU. `runtime_stop` ends a Colab/Kaggle session. If the user asks how to set
+something up, `setup_guide(platform)` has the steps.
 
 ## The one rule that matters: training is fire-and-poll
 Remote machines disconnect, and each tool call is short. So:
@@ -48,8 +51,9 @@ Hugging Face machines bill per minute until they end.
 - `hf_whoami` checks the login and whether the account can pay.
 
 ## Tool map
-- **Runtime/exec:** `connect_runtime`, `runtime_status`, `run_code`, `upload_file`,
-  `download_file`, `fetch_image`.
+- **Get a machine:** `kaggle_runtime_start`, `colab_runtime_start`, `connect_runtime`,
+  `runtime_stop`, `runtime_status`.
+- **Run code and files:** `run_code`, `upload_file`, `download_file`, `fetch_image`.
 - **Runs:** `launch_training`, `get_run_status`, `get_logs`, `get_metrics`, `stop_run`,
   `list_runs`, `plot_metrics`, `save_checkpoint`, `restore_checkpoint`.
 - **Notebook cells:** `notebook_create`, `notebook_read`, `notebook_add_cell`,
@@ -57,12 +61,12 @@ Hugging Face machines bill per minute until they end.
 - **RL:** `rl_setup`, `rl_reward_curve`, `rl_record_rollout`, `rl_seed_sweep`.
 - **CV:** `cv_load_dataset`, `cv_training_curves`, `cv_show_predictions`.
 - **Kaggle competitions:** `kaggle_search_datasets`, `kaggle_competition_files`,
-  `kaggle_submit`, `kaggle_submissions`, `kaggle_leaderboard`.
+  `kaggle_submit`, `kaggle_submissions`, `kaggle_leaderboard`. They use the Kaggle login
+  on this computer and need no runtime (submitting fetches the file from the runtime).
 - **Hugging Face compute:** `hf_hardware`, `hf_job_launch`, `hf_job_list`,
   `hf_job_cancel`, `hf_runtime_start`, `hf_runtime_connect`, `hf_runtime_stop`.
-- **Setup help:** `setup_guide(platform)` returns the steps (and notebook cell) to
-  connect Colab, Kaggle, Hugging Face or a Space; `example_script(name)` returns the
-  example training scripts. Use them when the user asks how to connect something.
+- **Setup help:** `setup_guide(platform)` returns the steps to connect Colab, Kaggle,
+  Hugging Face or a Space; `example_script(name)` returns the example training scripts.
 - **Hugging Face Hub / Spaces:** `hf_whoami`, `hf_search`, `hf_upload`, `hf_download`,
   `hf_push_run`, `hf_space_status`, `hf_space_hardware`, `hf_space_pause`,
   `hf_space_restart`.
@@ -82,26 +86,37 @@ The adapter lands in the Hub repo `<user>/smollm-quotes`.
 seed its own Hugging Face machine.
 
 **CV / competition** (see `examples/cv_mnist.py`):
-`cv_load_dataset("<competition>", kind="competition")` → `launch_training(...)` → poll →
+`kaggle_runtime_start(competition="<slug>")` (data appears under `/kaggle/input/`), or
+on another runtime `cv_load_dataset("<slug>", kind="competition")` → `launch_training(...)` → poll →
 `cv_training_curves(run)` → `cv_show_predictions(code)` → `kaggle_submit(...)` →
 `kaggle_submissions(...)`.
 
 ## Editing this server
-Tools are grouped in `src/thesis_mcp/tools/`: `core`, `notebook`, `rl`, `cv`,
-`kaggle_tools`, `hf_jobs` (jobs + interactive runtime), `hf_hub` (Hub + Spaces); each has
-`register(mcp)`, wired in `server.py`. Connections live in `connectors/` (`jupyter.py`,
-`hf.py`, `store.py`); the shared singletons are in `runtime_state.py`.
-`remote/hf_entrypoint.py` is the program that runs on a rented Hugging Face machine.
-The `thesis-mcp` command is `cli.py`: no arguments serves MCP over stdio; `install` /
-`uninstall` / `clients` (`installer.py`) register it with AI clients; `doctor` reports
-what is set up. `install.sh` and `install.ps1` wrap all of that for a new computer.
+Tools are grouped in `src/thesis_mcp/tools/`: `core`, `sessions` (start/pair/stop Colab
+and Kaggle), `notebook`, `rl`, `cv`, `kaggle_tools`, `hf_jobs` (jobs + interactive
+runtime), `hf_hub` (Hub + Spaces), `guide_tools`; each has `register(mcp)`, wired in
+`server.py`. Connections live in `connectors/` (`jupyter.py`, `kaggle_api.py`, `hf.py`,
+`pairing.py`, `store.py`); the shared singletons are in `runtime_state.py`.
 
-Before committing: `uv run pytest` (real Jupyter server + spec-checked Hugging Face mock)
+`remote/entrypoint.py` is the one program that runs on every remote machine (pushed to
+Kaggle, pasted into Colab, shipped to a Hugging Face job). It starts Jupyter, opens a
+tunnel and announces its address where needed, and exits when idle or told to stop. It
+must stay standard-library only.
+
+The `thesis-mcp` command is `cli.py`: no arguments serves MCP over stdio; `install` /
+`uninstall` / `clients` (`installer.py`) register it with AI clients; `login` hands over
+to the Kaggle / Hugging Face login tools; `doctor` reports what is set up. `install.sh`
+and `install.ps1` are the one-line installers. The repository address and branch they and
+the Colab line use are in `config.py` (`REPO_SLUG`, `REPO_BRANCH`) and at the top of both
+install scripts: update all three when the project moves.
+
+Before committing: `uv run pytest` (real Jupyter server; spec-checked Kaggle and Hugging Face mocks)
 and `uvx ruff check src tests`. After changing tool code the user must restart the MCP
 (relaunch Claude Code or `/mcp` reconnect).
 
 ## Never
-- Never commit secrets. `JUPYTER_TOKEN`, `HF_TOKEN` and Kaggle keys come from the
-  environment only; `.mcp.json`, `.thesis-mcp/`, `kaggle.json` and `.env` are git-ignored.
+- Never commit secrets. Logins belong to the Kaggle and Hugging Face tools; `.mcp.json`,
+  `.thesis-mcp/`, `kaggle.json` and `.env` are git-ignored.
+- Never ask the user to paste a token into the chat; point them at `thesis-mcp login`.
 - Never leave a Hugging Face machine running without telling the user.
 - Never assume a runtime is alive after a long gap — reconnect and check.

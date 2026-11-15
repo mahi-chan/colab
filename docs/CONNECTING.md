@@ -1,128 +1,137 @@
 # Connecting both ends
 
-thesis-mcp sits between two things, and each needs connecting once:
+thesis-mcp sits between two things:
 
 ```
   AI client  ───────────►  thesis-mcp  ───────────►  a machine with a GPU
-  (Claude, Cursor, ...)    (on your computer)        (Hugging Face, Colab, Kaggle)
+  (Claude, Cursor, ...)    (on your computer)        (Kaggle, Colab, Hugging Face)
 
-  connected by the installer                         connected by the steps below
+  done by the installer                              this page
 ```
 
-- **The AI client end** is done by the installer (`./install.sh` or `.\install.ps1`).
-- **The machine end** is what this page covers. Pick the platform you use; you only need one.
+The installer connects the AI client. This page covers the other end. You need only one
+platform, and for each the manual part is a single one-time step.
 
-At any time, this shows what is ready and what is missing:
-
-```bash
-uv run thesis-mcp doctor            # add --online to also verify the Hugging Face login
-```
-
-You can also just ask the assistant *"how do I connect Colab?"* (or Kaggle, or Hugging
-Face). It has a `setup_guide` tool that returns these same steps, including the notebook
-cell to paste.
+`thesis-mcp doctor` shows what is ready at any time (`--online` also checks your Hugging
+Face login against the network). You can also ask the assistant *"how do I connect
+Kaggle?"* — it has the same steps.
 
 ---
 
-## Hugging Face (rented GPU)
+## Kaggle — free GPU, fully automatic
 
-One-time setup, about two minutes. Nothing to paste into a notebook.
+**Once:**
 
-1. **Create a token.** Go to <https://huggingface.co/settings/tokens>, create a token
-   with **Write** access, and copy it.
-2. **Save it on your computer.** In a terminal, in the thesis-mcp folder:
+1. Verify your phone number at <https://www.kaggle.com/settings>. Kaggle requires it
+   before a session may use a GPU or the internet.
+2. Log in on your computer:
    ```bash
-   uv run hf auth login
+   thesis-mcp login kaggle
    ```
-   Paste the token when asked. (Alternative: set the `HF_TOKEN` environment variable for
-   your AI client.)
-3. **Enable billing.** Renting machines needs credits or a payment method:
-   <https://huggingface.co/settings/billing>.
-4. **Check it.** `uv run thesis-mcp doctor --online` should say
-   `Hugging Face: logged in as <you>, can pay for machines`.
+   (Alternative: on the same settings page create an API token and save the downloaded
+   `kaggle.json` as `~/.kaggle/kaggle.json`.)
 
-Then ask the assistant, for example:
+**Every time:** just ask.
 
-| You say | It uses |
-|---------|---------|
-| "Check my Hugging Face login and show GPU prices" | `hf_whoami`, `hf_hardware` |
-| "Fine-tune the LLM example on a T4 for at most 1 hour" | `hf_job_launch` |
-| "Start an A10G machine so we can experiment" | `hf_runtime_start`, `hf_runtime_connect` |
-| "Stop everything that is billing" | `hf_runtime_stop`, `hf_job_list` |
+| You say | What the assistant does |
+|---|---|
+| "Connect a Kaggle GPU." | Starts a session on Kaggle and attaches to it (one to three minutes). |
+| "Use the Titanic competition data." | Starts the session with that data under `/kaggle/input/`. |
+| "Submit `submission.csv` to Titanic." | Fetches the file from the session and submits it. |
+| "Stop the Kaggle session." | Ends it, so it stops using your weekly GPU hours. |
 
-**Cost:** machines bill per minute until they end. Every one gets a time limit, and the
-interactive machine shuts down after 30 idle minutes.
+You never open the browser. The session also ends by itself after 30 idle minutes or at
+its time limit (6 hours unless you ask otherwise). Files left in `/kaggle/working` are
+kept on Kaggle as the output of a private notebook named *Thesis MCP Runtime*.
+
+For a competition, accept its rules on the competition page first; Kaggle refuses to
+attach the data otherwise.
 
 ---
 
-## Google Colab (free GPU)
+## Google Colab — free GPU, one pasted line
 
-Repeat these each time you start a Colab session.
+Google offers no way for a program to start a Colab session, so one small step is yours.
 
-1. Open <https://colab.research.google.com> and create a notebook.
-2. Choose **Runtime → Change runtime type → GPU**.
-3. Paste the contents of [`runtime/colab_bootstrap.py`](../runtime/colab_bootstrap.py)
-   into a cell and run it. **Leave the cell running**: it hosts the connection.
-4. After a few seconds it prints two lines:
-   ```
-   export JUPYTER_URL="https://something.trycloudflare.com"
-   export JUPYTER_TOKEN="0123abcd..."
-   ```
-5. Give both values to the assistant: *"Connect to the runtime at `<URL>` with token
-   `<TOKEN>`."* It calls `connect_runtime` and confirms the GPU.
+1. Say *"connect Colab"*. The assistant replies with one line of code.
+2. Open <https://colab.new>, choose **Runtime → Change runtime type → T4 GPU**, paste the
+   line into the first cell and run it.
+3. The cell prints `connected` and keeps running (that is expected). Tell the assistant
+   it is running.
+
+That is all: you do not copy anything back. The session finds its own way to your
+computer.
 
 Good to know:
 
-- The address changes every time the cell runs again. After Colab disconnects, repeat
-  steps 3–5.
-- Colab deletes the machine's files when the session ends. Ask the assistant to
-  *"save the checkpoints"* as you go.
-- For Kaggle competitions or the Hugging Face Hub **from Colab**, fill in the optional
-  credential lines at the top of the cell before running it.
-- In Claude Code you can instead run the two `export` lines in your terminal before
-  starting `claude`, then say *"connect the runtime"*.
+- Each session gets a fresh line. After Colab disconnects, ask again.
+- Colab deletes the machine's files when the session ends. Ask the assistant to *"save
+  the checkpoints"* as you go.
+- The same line also works in a Kaggle notebook (with Internet switched on), if you
+  prefer not to log in to Kaggle on your computer.
 
 ---
 
-## Kaggle (free GPU, competitions)
+## Hugging Face — rented GPU, fully automatic
 
-1. Open <https://www.kaggle.com/code> and create a notebook.
-2. In the notebook settings set **Accelerator = GPU** and **Internet = On**. Both need a
-   phone-verified Kaggle account.
-3. Paste the contents of [`runtime/kaggle_bootstrap.py`](../runtime/kaggle_bootstrap.py)
-   into a cell and run it. Leave it running.
-4. Give the printed `JUPYTER_URL` and `JUPYTER_TOKEN` to the assistant, as for Colab.
+**Once:**
 
-Competition tools (`kaggle_submit`, `kaggle_leaderboard`, `cv_load_dataset`, ...) work
-here without extra credentials, because the code runs inside Kaggle.
+1. Create a token with **Write** access at <https://huggingface.co/settings/tokens>.
+2. Log in on your computer:
+   ```bash
+   thesis-mcp login huggingface
+   ```
+3. Add credits or a payment method at <https://huggingface.co/settings/billing>.
+
+**Every time:** just ask.
+
+| You say | What the assistant does |
+|---|---|
+| "Show me the GPU prices." | Lists machine types with specs and price per hour. |
+| "Fine-tune the LLM example on a T4 for at most an hour." | Rents one machine for that training; it stops when the script ends. |
+| "Start an A10G machine so we can experiment." | Rents an interactive machine and attaches to it. |
+| "Stop everything that is billing." | Stops the machine and lists anything still running. |
+
+Machines bill per minute until they end. Every one gets a time limit, and the
+interactive machine shuts down after 30 idle minutes, first copying its runs to a private
+repo on your account.
+
+### A Space you already rent
+
+For a GPU Space running JupyterLab, tell the assistant its address
+(`https://<user>-<space-name>.hf.space`) and its `JUPYTER_TOKEN` secret and ask it to
+connect with Hugging Face auth. *"Pause my Space"* stops its billing.
 
 ---
 
-## A Hugging Face Space you already rent
+## How a new session finds your computer
 
-For a GPU Space that runs JupyterLab (for example one made from the "JupyterLab" Docker
-template):
+A Kaggle or Colab machine cannot be reached from outside, so the program thesis-mcp
+starts there opens a temporary tunnel and announces the tunnel's address:
 
-1. Do steps 1–2 of the Hugging Face section above (token and login).
-2. In the Space's settings, make sure a `JUPYTER_TOKEN` secret is set.
-3. Tell the assistant: *"Connect to my Space at `https://<user>-<space-name>.hf.space`
-   with Jupyter token `<TOKEN>`, using Hugging Face auth."* It calls
-   `connect_runtime(url, token, hf_auth=True)`.
+- thesis-mcp makes a random one-time code and gives it to the session (inside the script
+  it pushes to Kaggle, or in the line you paste into Colab).
+- The session uses the code as its password and posts its address, signed with the code,
+  to a relay ([ntfy.sh](https://ntfy.sh) by default) under a name derived from the code.
+  On Kaggle the address is also read back through Kaggle's own API.
+- Your computer accepts only an address with a valid signature.
 
-A Space on paid hardware bills while it runs. *"Pause my Space"* stops it.
+The relay sees a tunnel address and nothing else. To use your own
+[ntfy](https://docs.ntfy.sh/install/) server, set `THESIS_RENDEZVOUS_URL` for the AI
+client.
 
 ---
 
 ## The AI client end
 
-`./install.sh` (macOS, Linux) or `.\install.ps1` (Windows) registers the server with every
-supported client it finds. To manage it by hand:
+The one-line installer registers the server with every supported client it finds. To
+manage it by hand:
 
 ```bash
-uv run thesis-mcp clients                    # which clients are found / installed
-uv run thesis-mcp install --client cursor    # one client (repeatable)
-uv run thesis-mcp uninstall                  # remove from all
-uv run thesis-mcp install --print            # the entry to paste into any other client
+thesis-mcp clients                    # which clients are found / installed
+thesis-mcp install --client cursor    # one client (repeatable)
+thesis-mcp uninstall                  # remove from all
+thesis-mcp install --print            # the entry to paste into any other client
 ```
 
 | Client | `--client` name | After installing |
@@ -136,14 +145,11 @@ uv run thesis-mcp install --print            # the entry to paste into any other
 | Gemini CLI | `gemini` | Start a new session |
 | Codex CLI | `codex` | Start a new session |
 
-**Any other client** that runs local MCP servers: paste the output of
-`uv run thesis-mcp install --print` into its MCP settings.
-
 **Clients that connect by URL** instead of starting a program: run
-`uv run thesis-mcp serve --http` and point the client at `http://127.0.0.1:8765/mcp`.
-This listens on your own computer only. Do not expose it to the internet: it has no
-password, and whoever reaches it can rent machines on your Hugging Face account. For the
-same reason, chat apps that run only in a browser and need a public server address are
-not supported.
+`thesis-mcp serve --http` and point the client at `http://127.0.0.1:8765/mcp`. This
+listens on your own computer only. Do not expose it to the internet: it has no password,
+and whoever reaches it can rent machines on your Hugging Face account. For the same
+reason, chat apps that run only in a browser and need a public server address are not
+supported.
 
 The installer never writes a token or password into any client's config.
