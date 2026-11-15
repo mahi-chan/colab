@@ -10,6 +10,7 @@ import posixpath
 from mcp.server.fastmcp import Image
 
 from .. import runtime_state as rs
+from .kaggle_tools import KAGGLE_SNIPPET
 
 
 def register(mcp):
@@ -23,21 +24,20 @@ def register(mcp):
         Requires Kaggle credentials on the runtime (set in the bootstrap cell, or
         automatic on Kaggle notebooks).
         """
-        sub = "datasets download -d" if kind == "dataset" else "competitions download -c"
+        sub = ["datasets", "download", "-d"] if kind == "dataset" else ["competitions", "download", "-c"]
         code = (
-            "import os, subprocess, glob, zipfile\n"
+            KAGGLE_SNIPPET
+            + "import os, glob, zipfile\n"
             f"dest = {dest!r}\nos.makedirs(dest, exist_ok=True)\n"
-            "subprocess.run('pip -q install kaggle'.split(), check=False)\n"
-            f"sub = {sub!r}\n"
-            f"r = subprocess.run(['kaggle', *sub.split(), {ref!r}, '-p', dest], "
-            "capture_output=True, text=True)\n"
-            "print(r.stdout.strip()); print(r.stderr.strip())\n"
+            f"r = _kaggle({sub!r} + [{ref!r}, '-p', dest])\n"
+            "print(r.stdout.strip())\n"
+            "if r.stderr.strip(): print('[stderr]', r.stderr.strip())\n"
             + (
                 "for z in glob.glob(os.path.join(dest,'*.zip')):\n"
                 "    zipfile.ZipFile(z).extractall(dest)\n"
                 if unzip else ""
             )
-            + "print('CONTENTS', os.listdir(dest)[:30])\n"
+            + "print('CONTENTS', sorted(os.listdir(dest))[:30])\n"
         )
         return rs.jupyter.execute(code, timeout=900).text or "(no output)"
 
@@ -47,10 +47,10 @@ def register(mcp):
         run = rs.store.get_run(run_name)
         if not run:
             return [f"No run named '{run_name}'."]
-        rd = run["dir"]
-        out_abs = posixpath.join(rd, "_cv.png")
         candidates = ["loss", "val_loss", "acc", "val_acc", "top1", "top5",
                       "map", "mAP", "map50", "iou", "dice", "f1"]
+        rd = run["dir"]
+        out_abs = posixpath.join(rd, "_cv.png")
         code = (
             "import json, os, matplotlib\nmatplotlib.use('Agg')\n"
             "import matplotlib.pyplot as plt\n"
@@ -87,7 +87,9 @@ def register(mcp):
         ``cv2.imwrite(OUT, canvas)``.
         """
         out_abs = posixpath.join(rs.contents_root(), out)
-        code = f"OUT = {out_abs!r}\n# ---- user inference code ----\n{inference_code}\n"
+        code = (f"import os as _os\nOUT = {out_abs!r}\n"
+                "_os.makedirs(_os.path.dirname(OUT), exist_ok=True)\n"
+                f"# ---- user inference code ----\n{inference_code}\n")
         res = rs.jupyter.execute(code, timeout=300)
         if res.error:
             return [f"Inference failed:\n{res.error}"]

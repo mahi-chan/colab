@@ -22,11 +22,15 @@ def register(mcp):
         extras: Gymnasium extras to include, e.g. "classic-control", "box2d", "atari,accept-rom-license".
         Also installs xvfb + pyvirtualdisplay for headless rendering.
         """
+        packages = [f"gymnasium[{extras}]", "stable-baselines3", "imageio", "imageio-ffmpeg",
+                    "pyvirtualdisplay"]
         code = (
-            "import subprocess\n"
-            "subprocess.run('apt-get -qq install -y xvfb'.split(), check=False)\n"
-            f"subprocess.run('pip -q install gymnasium[{extras}] stable-baselines3 "
-            "imageio imageio-ffmpeg pyvirtualdisplay'.split(), check=False)\n"
+            "import shutil, subprocess, sys\n"
+            "if shutil.which('apt-get'):\n"
+            "    subprocess.run(['apt-get', '-qq', 'install', '-y', 'xvfb'], capture_output=True)\n"
+            f"r = subprocess.run([sys.executable, '-m', 'pip', 'install', '-q', *{packages!r}], "
+            "capture_output=True, text=True)\n"
+            "if r.returncode != 0:\n    print('pip failed:', r.stderr[-1500:])\n"
             "import gymnasium, stable_baselines3\n"
             "print('gymnasium', gymnasium.__version__, 'sb3', stable_baselines3.__version__)\n"
         )
@@ -38,9 +42,9 @@ def register(mcp):
         run = rs.store.get_run(run_name)
         if not run:
             return [f"No run named '{run_name}'."]
+        candidates = ["reward", "ep_reward", "ep_rew_mean", "return", "eval_return", "mean_reward"]
         rd = run["dir"]
         out_abs = posixpath.join(rd, "_reward.png")
-        candidates = ["reward", "ep_reward", "ep_rew_mean", "return", "eval_return", "mean_reward"]
         code = (
             "import json, os, matplotlib\nmatplotlib.use('Agg')\n"
             "import matplotlib.pyplot as plt\n"
@@ -80,22 +84,24 @@ def register(mcp):
         rd = run["dir"]
         png_abs = posixpath.join(rd, "rollout.png")
         gif_abs = posixpath.join(rd, "rollout.gif")
+        # Pillow only (it ships with matplotlib), so this works without rl_setup.
         wrapper = (
-            "import numpy as np, imageio, math, os\n"
+            "import math\nimport numpy as np\nfrom PIL import Image as _PILImage\n"
             "# ---- user rollout code (must define `frames`) ----\n"
             f"{rollout_code}\n"
             "# --------------------------------------------------\n"
-            "frames = [np.asarray(f).astype('uint8') for f in frames]\n"
-            f"imageio.mimsave({gif_abs!r}, frames, fps=15)\n"
+            "frames = [np.asarray(f).astype('uint8')[..., :3] for f in frames]\n"
+            "_imgs = [_PILImage.fromarray(f) for f in frames]\n"
+            f"_imgs[0].save({gif_abs!r}, save_all=True, append_images=_imgs[1:], duration=66, loop=0)\n"
             f"sel = frames[:: max(1, len(frames)//{int(max_frames)})][:{int(max_frames)}]\n"
             "n = len(sel); cols = int(math.ceil(math.sqrt(n))); rows = int(math.ceil(n/cols))\n"
             "h, w = sel[0].shape[:2]\n"
             "sheet = np.zeros((rows*h, cols*w, 3), dtype='uint8')\n"
             "for i, fr in enumerate(sel):\n"
             "    r, c = divmod(i, cols)\n"
-            "    sheet[r*h:(r+1)*h, c*w:(c+1)*w] = fr[..., :3]\n"
-            f"imageio.imwrite({png_abs!r}, sheet)\n"
-            "print('frames', len(frames), 'gif', " f"{gif_abs!r}" ")\n"
+            "    sheet[r*h:(r+1)*h, c*w:(c+1)*w] = fr\n"
+            f"_PILImage.fromarray(sheet).save({png_abs!r})\n"
+            f"print('frames', len(frames), 'gif', {gif_abs!r})\n"
         )
         res = rs.jupyter.execute(wrapper, timeout=300)
         if res.error:
