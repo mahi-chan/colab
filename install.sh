@@ -1,17 +1,21 @@
 #!/usr/bin/env sh
 # thesis-mcp installer for macOS and Linux.
 #
-#   ./install.sh                      install into every AI client found on this computer
-#   ./install.sh --client cursor      install into one client (repeatable)
-#   ./install.sh --print              only print the config entry, change nothing
+#   curl -fsSL https://raw.githubusercontent.com/mahi-chan/colab/claude/mcp-colab-kaggle-3nheg4/install.sh | sh
 #
-# Run it from a checkout of the repository, or on its own (it then downloads the
-# repository to ~/.thesis-mcp/app). Safe to run again: it updates and re-registers.
+# It downloads thesis-mcp to ~/.thesis-mcp/app, sets up its Python environment, registers
+# it with every AI client found on this computer, and adds a `thesis-mcp` command.
+# Run the same line again to update. Options go after `sh -s --`, for example:
+#
+#   curl -fsSL <same address> | sh -s -- --client cursor
+#
+# Inside a checkout of the repository, `./install.sh` installs from that checkout instead.
 set -eu
 
-REPO_URL="${THESIS_MCP_REPO:-https://github.com/mahi-chan/colab.git}"
+REPO="${THESIS_MCP_REPO_SLUG:-mahi-chan/colab}"
 BRANCH="${THESIS_MCP_BRANCH:-claude/mcp-colab-kaggle-3nheg4}"
 APP_DIR="${THESIS_MCP_DIR:-$HOME/.thesis-mcp/app}"
+BIN_DIR="${THESIS_MCP_BIN:-$HOME/.local/bin}"
 
 say() { printf '%s\n' "$*"; }
 fail() { say "error: $*" >&2; exit 1; }
@@ -22,15 +26,18 @@ if [ -f "$SCRIPT_DIR/pyproject.toml" ] && grep -q '^name = "thesis-mcp"' "$SCRIP
     APP_DIR="$SCRIPT_DIR"
     say "Using the checkout at $APP_DIR"
 else
-    command -v git >/dev/null 2>&1 || fail "git is required. Install it, then run this again."
-    if [ -d "$APP_DIR/.git" ]; then
-        say "Updating $APP_DIR"
-        git -C "$APP_DIR" pull --ff-only --quiet
-    else
-        say "Downloading thesis-mcp to $APP_DIR"
-        mkdir -p "$(dirname "$APP_DIR")"
-        git clone --quiet --branch "$BRANCH" "$REPO_URL" "$APP_DIR"
-    fi
+    command -v curl >/dev/null 2>&1 || fail "curl is required."
+    command -v tar >/dev/null 2>&1 || fail "tar is required."
+    say "Downloading thesis-mcp to $APP_DIR"
+    NEW="$APP_DIR.new"
+    rm -rf "$NEW"
+    mkdir -p "$NEW"
+    curl -fsSL "https://github.com/$REPO/archive/refs/heads/$BRANCH.tar.gz" | tar -xz -C "$NEW" --strip-components=1 \
+        || fail "could not download https://github.com/$REPO (branch $BRANCH)."
+    # keep the existing environment so an update is quick
+    if [ -d "$APP_DIR/.venv" ]; then mv "$APP_DIR/.venv" "$NEW/.venv"; fi
+    rm -rf "$APP_DIR"
+    mv "$NEW" "$APP_DIR"
 fi
 
 # 2. Make sure uv (the Python package manager this project uses) is available.
@@ -38,7 +45,7 @@ PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
 export PATH
 if ! command -v uv >/dev/null 2>&1; then
     say "Installing uv (https://docs.astral.sh/uv/)"
-    command -v curl >/dev/null 2>&1 || fail "curl is required to install uv. Install uv yourself, then run this again."
+    command -v curl >/dev/null 2>&1 || fail "curl is required to install uv."
     curl -LsSf https://astral.sh/uv/install.sh | sh
     command -v uv >/dev/null 2>&1 || fail "uv was installed but is not on PATH. Open a new terminal and run this again."
 fi
@@ -48,6 +55,17 @@ say "Installing dependencies"
 cd "$APP_DIR"
 uv sync --locked --no-dev --inexact --quiet
 
-# 4. Register with AI clients.
+# 4. Add a `thesis-mcp` command.
+mkdir -p "$BIN_DIR"
+printf '#!/bin/sh\nexec "%s/.venv/bin/thesis-mcp" "$@"\n' "$APP_DIR" > "$BIN_DIR/thesis-mcp"
+chmod +x "$BIN_DIR/thesis-mcp"
+
+# 5. Register with AI clients.
 say ""
-uv run --no-sync thesis-mcp install "$@"
+"$APP_DIR/.venv/bin/thesis-mcp" install "$@"
+
+case ":$PATH:" in
+    *":$BIN_DIR:"*) ;;
+    *) say ""
+       say "Note: add $BIN_DIR to your PATH to use the 'thesis-mcp' command by name." ;;
+esac
