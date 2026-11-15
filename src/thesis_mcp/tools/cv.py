@@ -10,6 +10,8 @@ import posixpath
 from mcp.server.fastmcp import Image
 
 from .. import runtime_state as rs
+from . import _plots, hf_jobs
+from .core import is_job
 from .kaggle_tools import KAGGLE_SNIPPET
 
 
@@ -42,6 +44,7 @@ def register(mcp):
         return rs.jupyter.execute(code, timeout=900).text or "(no output)"
 
     @mcp.tool()
+    @hf_jobs.hf_errors
     def cv_training_curves(run_name: str) -> list:
         """Plot standard CV metrics for a run (loss / accuracy / mAP / IoU — auto-detected)."""
         run = rs.store.get_run(run_name)
@@ -49,6 +52,11 @@ def register(mcp):
             return [f"No run named '{run_name}'."]
         candidates = ["loss", "val_loss", "acc", "val_acc", "top1", "top5",
                       "map", "mAP", "map50", "iou", "dice", "f1"]
+        if is_job(run):
+            rows = hf_jobs.job_metric_rows(run)
+            keys = [k for k in candidates if any(k in r for r in rows)]
+            return [f"training curves — keys {keys} rows {len(rows)}",
+                    Image(data=_plots.plot_png(rows, keys, run_name), format="png")]
         rd = run["dir"]
         out_abs = posixpath.join(rd, "_cv.png")
         code = (

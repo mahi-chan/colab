@@ -11,7 +11,8 @@ import posixpath
 from mcp.server.fastmcp import Image
 
 from .. import runtime_state as rs
-from .core import launch_impl
+from . import _plots, hf_jobs
+from .core import is_job, launch_impl
 
 
 def register(mcp):
@@ -37,12 +38,18 @@ def register(mcp):
         return rs.jupyter.execute(code, timeout=600).text or "(setup finished)"
 
     @mcp.tool()
+    @hf_jobs.hf_errors
     def rl_reward_curve(run_name: str) -> list:
         """Plot the reward curve for an RL run (auto-detects reward-like metric keys)."""
         run = rs.store.get_run(run_name)
         if not run:
             return [f"No run named '{run_name}'."]
         candidates = ["reward", "ep_reward", "ep_rew_mean", "return", "eval_return", "mean_reward"]
+        if is_job(run):
+            rows = hf_jobs.job_metric_rows(run)
+            keys = [k for k in candidates if any(k in r for r in rows)]
+            return [f"reward curve — keys {keys} rows {len(rows)}",
+                    Image(data=_plots.plot_png(rows, keys, f"reward: {run_name}"), format="png")]
         rd = run["dir"]
         out_abs = posixpath.join(rd, "_reward.png")
         code = (
@@ -81,6 +88,10 @@ def register(mcp):
         run = rs.store.get_run(run_name)
         if not run:
             return [f"No run named '{run_name}'."]
+        if is_job(run):
+            return [f"'{run_name}' ran as a Hugging Face job, which has no live machine to render "
+                    "on. Connect a runtime, load the policy from the run's Hub repo "
+                    f"({run['hub_repo']}), and launch or register a run there."]
         rd = run["dir"]
         png_abs = posixpath.join(rd, "rollout.png")
         gif_abs = posixpath.join(rd, "rollout.gif")
@@ -113,12 +124,16 @@ def register(mcp):
         return [f"rollout — {res.text.strip()}", Image(data=data, format="png")]
 
     @mcp.tool()
-    def rl_seed_sweep(script: str, run_name: str, seeds: str,
-                      requirements: str = "") -> str:
+    @hf_jobs.hf_errors
+    def rl_seed_sweep(script: str, run_name: str, seeds: str, requirements: str = "",
+                      hf_flavor: str = "", hf_timeout: str = "1h") -> str:
         """Launch the same training script across several seeds as separate runs.
 
         seeds: comma-separated, e.g. "0,1,2". Each becomes a run '<run_name>_s<seed>'
         with THESIS_SEED set (read it as ``SEED`` in your script). Poll each run by name.
+        hf_flavor: leave empty to run all seeds on the connected runtime. Set a Hugging Face
+                   machine type (e.g. "t4-small") to give every seed its own rented job,
+                   so they train in parallel; each is billed separately, up to hf_timeout.
         """
         seed_list = [s.strip() for s in seeds.split(",") if s.strip()]
         if not seed_list:
@@ -126,6 +141,11 @@ def register(mcp):
         launched = []
         for s in seed_list:
             name = f"{run_name}_s{s}"
-            ok, _, msg = launch_impl(script, name, requirements, {"THESIS_SEED": s})
+            env = {"THESIS_SEED": s}
+            if hf_flavor:
+                ok, msg = hf_jobs.launch_job_impl(script, name, hf_flavor, hf_timeout,
+                                                  requirements, env)
+            else:
+                ok, _, msg = launch_impl(script, name, requirements, env)
             launched.append(f"{name}: {'ok' if ok else 'FAILED ' + msg}")
         return "Seed sweep launched:\n" + "\n".join(launched)
