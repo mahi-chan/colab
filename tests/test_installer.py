@@ -10,7 +10,7 @@ import sys
 import pytest
 from conftest import call, free_port
 
-from thesis_mcp import cli, installer
+from gpu_bridge import cli, installer
 
 
 @pytest.fixture
@@ -24,7 +24,7 @@ def home(tmp_path, monkeypatch):
 
 
 def entry():
-    return {"command": sys.executable, "args": ["-m", "thesis_mcp"]}
+    return {"command": sys.executable, "args": ["-m", "gpu_bridge"]}
 
 
 def test_json_install_keeps_everything_else(home):
@@ -35,7 +35,7 @@ def test_json_install_keeps_everything_else(home):
 
     assert installer.apply(cursor) is True
     data = json.loads(path.read_text())
-    assert data == {"mcpServers": {"other": {"command": "x"}, "thesis": entry()}, "theme": "dark"}
+    assert data == {"mcpServers": {"other": {"command": "x"}, "gpu-bridge": entry()}, "theme": "dark"}
     assert json.loads((home / ".cursor" / "mcp.json.bak").read_text())["mcpServers"] == {"other": {"command": "x"}}
     assert installer.is_installed(cursor)
 
@@ -52,10 +52,10 @@ def test_creates_missing_config_and_uses_each_clients_format(home):
     for key in ("claude-desktop", "windsurf", "gemini", "cline"):
         client = installer.CLIENTS[key]
         assert installer.apply(client) is True
-        assert json.loads(client.path().read_text()) == {"mcpServers": {"thesis": entry()}}
+        assert json.loads(client.path().read_text()) == {"mcpServers": {"gpu-bridge": entry()}}
     vscode = installer.CLIENTS["vscode"]
     installer.apply(vscode)
-    assert json.loads(vscode.path().read_text()) == {"servers": {"thesis": {"type": "stdio", **entry()}}}
+    assert json.loads(vscode.path().read_text()) == {"servers": {"gpu-bridge": {"type": "stdio", **entry()}}}
 
 
 def test_config_with_comments_is_left_alone(home):
@@ -72,18 +72,18 @@ def test_codex_toml(home):
     tomllib = pytest.importorskip("tomllib")  # standard library from Python 3.11
     path = home / ".codex" / "config.toml"
     path.parent.mkdir()
-    path.write_text('model = "o"\n\n[mcp_servers.thesis]\ncommand = "old"\n\n[mcp_servers.thesis.env]\nA = "1"\n\n'
+    path.write_text('model = "o"\n\n[mcp_servers.gpu-bridge]\ncommand = "old"\n\n[mcp_servers.gpu-bridge.env]\nA = "1"\n\n'
                     '[mcp_servers.other]\ncommand = "x"\n')
     codex = installer.CLIENTS["codex"]
 
     assert installer.apply(codex) is True
     data = tomllib.loads(path.read_text())
     assert data["model"] == "o" and data["mcp_servers"]["other"] == {"command": "x"}
-    assert data["mcp_servers"]["thesis"] == entry(), "the old entry and its sub-table are replaced"
+    assert data["mcp_servers"]["gpu-bridge"] == entry(), "the old entry and its sub-table are replaced"
     assert installer.apply(codex) is False
 
     assert installer.apply(codex, remove=True) is True
-    assert "thesis" not in tomllib.loads(path.read_text())["mcp_servers"]
+    assert "gpu-bridge" not in tomllib.loads(path.read_text())["mcp_servers"]
 
 
 @pytest.mark.parametrize("platform, env, expected", [
@@ -119,8 +119,8 @@ def test_detection_and_default_targets(home, monkeypatch, capsys):
 def test_claude_code_real_cli(home):
     claude = installer.CLIENTS["claude-code"]
     assert installer.apply(claude) is True
-    stored = json.loads((home / ".claude.json").read_text())["mcpServers"]["thesis"]
-    assert stored["command"] == sys.executable and stored["args"] == ["-m", "thesis_mcp"]
+    stored = json.loads((home / ".claude.json").read_text())["mcpServers"]["gpu-bridge"]
+    assert stored["command"] == sys.executable and stored["args"] == ["-m", "gpu_bridge"]
     assert installer.apply(claude) is False
     assert installer.apply(claude, remove=True) is True
     assert not installer.is_installed(claude)
@@ -128,7 +128,7 @@ def test_claude_code_real_cli(home):
 
 def test_command_line(home, capsys):
     assert cli.main(["install", "--print"]) == 0
-    assert json.loads(capsys.readouterr().out) == {"mcpServers": {"thesis": entry()}}
+    assert json.loads(capsys.readouterr().out) == {"mcpServers": {"gpu-bridge": entry()}}
 
     assert cli.main(["install", "--client", "cursor"]) == 0
     assert "[ok] Cursor: installed" in capsys.readouterr().out
@@ -150,7 +150,7 @@ def test_the_registered_command_starts_a_working_server(tmp_path):
     command = installer.server_command()
 
     async def handshake():
-        env = {**os.environ, "THESIS_STATE_DIR": str(tmp_path)}
+        env = {**os.environ, "GPU_BRIDGE_STATE_DIR": str(tmp_path)}
         async with stdio_client(StdioServerParameters(command=command[0], args=command[1:], env=env)) as (r, w):
             async with ClientSession(r, w) as session:
                 await session.initialize()
@@ -164,7 +164,7 @@ def test_http_mode_for_clients_that_connect_by_url(tmp_path):
     from mcp.client.streamable_http import streamable_http_client
 
     port = free_port()
-    env = {**os.environ, "THESIS_STATE_DIR": str(tmp_path)}
+    env = {**os.environ, "GPU_BRIDGE_STATE_DIR": str(tmp_path)}
     proc = subprocess.Popen([*installer.server_command(), "serve", "--http", "--port", str(port)],
                             env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
@@ -211,8 +211,8 @@ def test_wheel_carries_the_remote_program_and_examples(tmp_path):
     subprocess.run(["uv", "build", "--wheel", "--out-dir", str(tmp_path), str(repo)],
                    check=True, capture_output=True)
     names = zipfile.ZipFile(next(tmp_path.glob("*.whl"))).namelist()
-    for needed in ("thesis_mcp/_assets/examples/llm_lora_finetune.py",
-                   "thesis_mcp/remote/entrypoint.py", "thesis_mcp/__main__.py"):
+    for needed in ("gpu_bridge/_assets/examples/llm_lora_finetune.py",
+                   "gpu_bridge/remote/entrypoint.py", "gpu_bridge/__main__.py"):
         assert needed in names, needed
 
 

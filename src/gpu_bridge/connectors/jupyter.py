@@ -173,7 +173,7 @@ class JupyterClient:
         request = {
             "header": {
                 "msg_id": msg_id,
-                "username": "thesis-mcp",
+                "username": "gpu-bridge",
                 "session": self.session_id,
                 "msg_type": "execute_request",
                 "version": "5.3",

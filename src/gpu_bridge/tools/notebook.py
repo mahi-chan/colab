@@ -2,7 +2,7 @@
 
 These operate on notebook files via the Jupyter Contents API and execute cells on
 the live kernel — the "give the code agent access to edit Colab" basics. Paths are
-relative to the runtime's contents root (e.g. ``notebooks/thesis.ipynb``).
+relative to the runtime's contents root (e.g. ``notebooks/experiment.ipynb``).
 """
 
 from mcp.server.fastmcp import Image

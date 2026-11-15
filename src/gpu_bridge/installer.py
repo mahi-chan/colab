@@ -1,7 +1,7 @@
 """Register this MCP server with AI clients (Claude Code, Cursor, VS Code, ...).
 
 Every client keeps a small config file that says how to start each MCP server. The
-installer adds one entry — "start this Python environment's ``thesis_mcp`` module" — and
+installer adds one entry — "start this Python environment's ``gpu_bridge`` module" — and
 leaves everything else in the file alone. No secret is ever written: the Hugging Face
 token comes from ``hf auth login``, and a Colab/Kaggle address is given in chat.
 """
@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Dict, List, Optional
 
-SERVER_NAME = "thesis"
+SERVER_NAME = "gpu-bridge"
 
 
 class InstallError(RuntimeError):
@@ -28,14 +28,14 @@ def server_command() -> List[str]:
 
     Absolute, because desktop apps do not inherit the shell's PATH.
     """
-    return [sys.executable, "-m", "thesis_mcp"]
+    return [sys.executable, "-m", "gpu_bridge"]
 
 
 def cli_command() -> str:
-    """How to type the `thesis-mcp` command in messages: by name if it is on PATH."""
-    if shutil.which("thesis-mcp"):
-        return "thesis-mcp"
-    name = "thesis-mcp.exe" if sys.platform == "win32" else "thesis-mcp"
+    """How to type the `gpu-bridge` command in messages: by name if it is on PATH."""
+    if shutil.which("gpu-bridge"):
+        return "gpu-bridge"
+    name = "gpu-bridge.exe" if sys.platform == "win32" else "gpu-bridge"
     return f'"{Path(sys.executable).parent / name}"'
 
 
@@ -89,7 +89,7 @@ CLIENTS: Dict[str, Client] = {c.key: c for c in [
            lambda: _app_config_dir("Claude") / "claude_desktop_config.json",
            after="Quit Claude Desktop completely and open it again."),
     Client("cursor", "Cursor", lambda: _home() / ".cursor" / "mcp.json",
-           after="Restart Cursor, then enable 'thesis' under Settings > MCP if it is off."),
+           after="Restart Cursor, then enable 'gpu-bridge' under Settings > MCP if it is off."),
     Client("vscode", "VS Code (GitHub Copilot)", lambda: _vscode_user_dir() / "mcp.json",
            root_key="servers", extra={"type": "stdio"},
            after="Reload VS Code; the tools appear in Copilot Chat's agent mode."),

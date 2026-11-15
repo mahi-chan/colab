@@ -1,4 +1,4 @@
-"""``thesis-mcp doctor``: what is set up, and what still needs doing."""
+"""``gpu-bridge doctor``: what is set up, and what still needs doing."""
 
 import sys
 
@@ -50,7 +50,7 @@ def endpoints(online: bool = False) -> str:
 def report(online: bool = False) -> str:
     from . import runtime_state as rs
 
-    out = [f"thesis-mcp {__version__}  (Python {sys.version.split()[0]})",
+    out = [f"gpu-bridge {__version__}  (Python {sys.version.split()[0]})",
            "Server command: " + " ".join(installer.server_command()),
            "", "AI clients"]
     for client in installer.CLIENTS.values():

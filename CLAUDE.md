@@ -1,9 +1,9 @@
-# thesis-mcp — working notes for Claude Code
+# gpu-bridge — working notes for Claude Code
 
 This repo IS an MCP server that you (Claude Code) use to run ML work — RL, CV, LLM
 fine-tuning, experiments, competitions — on remote GPUs: **Google Colab, Kaggle, and
-rented Hugging Face machines**. The server is defined in `src/thesis_mcp/`; when it is
-registered, its tools appear as `thesis` tools. This file is your memory across
+rented Hugging Face machines**. The server is defined in `src/gpu_bridge/`; when it is
+registered, its tools appear as `gpu-bridge` tools. This file is your memory across
 `/clear` — read it first each session.
 
 ## Every session, get a machine first
@@ -11,7 +11,7 @@ Pick one, depending on what the user is using:
 
 | Where | How |
 |-------|-----|
-| Kaggle (free) | **`kaggle_runtime_start`**, then **`connect_runtime`** (repeat until it is up). Automatic once the user has run `thesis-mcp login kaggle`. |
+| Kaggle (free) | **`kaggle_runtime_start`**, then **`connect_runtime`** (repeat until it is up). Automatic once the user has run `gpu-bridge login kaggle`. |
 | Colab (free) | **`colab_runtime_start`** returns one line; the user runs it in a Colab cell; then **`connect_runtime`**. Nothing is copied back. |
 | Hugging Face, interactive (paid) | **`hf_runtime_start(flavor, timeout)`**, then **`hf_runtime_connect`** (repeat until ready). **`hf_runtime_stop`** when done. |
 | Hugging Face, one training per machine (paid) | **`hf_job_launch(script, run_name, flavor, timeout)`**. No runtime needed. |
@@ -31,7 +31,7 @@ Remote machines disconnect, and each tool call is short. So:
   `plot_metrics`, `stop_run`. `list_runs` shows what exists.
 - Inside a training `script`, these are injected — do not import them:
   `log_metric(step, **kv)`, `save_checkpoint_file(path)` (file or folder),
-  `THESIS_RUN_DIR`, `SEED`. The same script runs on every backend.
+  `GPU_BRIDGE_RUN_DIR`, `SEED`. The same script runs on every backend.
 
 ## Results must leave the machine
 Every remote disk is temporary.
@@ -40,7 +40,7 @@ Every remote disk is temporary.
 - Hugging Face job: `save_checkpoint_file` uploads to the private Hub repo
   `<user>/<run_name>` by itself; `save_checkpoint` downloads from there.
 - A Hugging Face runtime that shuts down for idleness first archives its runs folder to
-  `<user>/thesis-mcp-archive`. A timeout or `hf_runtime_stop` does **not** — push first.
+  `<user>/gpu-bridge-archive`. A timeout or `hf_runtime_stop` does **not** — push first.
 
 ## Money (Hugging Face only)
 Hugging Face machines bill per minute until they end.
@@ -92,7 +92,7 @@ on another runtime `cv_load_dataset("<slug>", kind="competition")` → `launch_t
 `kaggle_submissions(...)`.
 
 ## Editing this server
-Tools are grouped in `src/thesis_mcp/tools/`: `core`, `sessions` (start/pair/stop Colab
+Tools are grouped in `src/gpu_bridge/tools/`: `core`, `sessions` (start/pair/stop Colab
 and Kaggle), `notebook`, `rl`, `cv`, `kaggle_tools`, `hf_jobs` (jobs + interactive
 runtime), `hf_hub` (Hub + Spaces), `guide_tools`; each has `register(mcp)`, wired in
 `server.py`. Connections live in `connectors/` (`jupyter.py`, `kaggle_api.py`, `hf.py`,
@@ -103,7 +103,7 @@ Kaggle, pasted into Colab, shipped to a Hugging Face job). It starts Jupyter, op
 tunnel and announces its address where needed, and exits when idle or told to stop. It
 must stay standard-library only.
 
-The `thesis-mcp` command is `cli.py`: no arguments serves MCP over stdio; `install` /
+The `gpu-bridge` command is `cli.py`: no arguments serves MCP over stdio; `install` /
 `uninstall` / `clients` (`installer.py`) register it with AI clients; `login` hands over
 to the Kaggle / Hugging Face login tools; `doctor` reports what is set up. `install.sh`
 and `install.ps1` are the one-line installers. The repository address and branch they and
@@ -116,7 +116,7 @@ and `uvx ruff check src tests`. After changing tool code the user must restart t
 
 ## Never
 - Never commit secrets. Logins belong to the Kaggle and Hugging Face tools; `.mcp.json`,
-  `.thesis-mcp/`, `kaggle.json` and `.env` are git-ignored.
-- Never ask the user to paste a token into the chat; point them at `thesis-mcp login`.
+  `.gpu-bridge/`, `kaggle.json` and `.env` are git-ignored.
+- Never ask the user to paste a token into the chat; point them at `gpu-bridge login`.
 - Never leave a Hugging Face machine running without telling the user.
 - Never assume a runtime is alive after a long gap — reconnect and check.

@@ -28,19 +28,19 @@ from . import _plots, hf_jobs
 # zero-dependency way to record metrics and checkpoints the tools can read back.
 TRAIN_PREAMBLE = '''\
 import os as _os, json as _json, time as _time
-THESIS_RUN_DIR = _os.environ.get("THESIS_RUN_DIR", ".")
+GPU_BRIDGE_RUN_DIR = _os.environ.get("GPU_BRIDGE_RUN_DIR", ".")
 
 def log_metric(step=None, **kv):
     """Append one JSON-line metrics record for the MCP to read and plot."""
     rec = {"t": _time.time(), "step": step}
     rec.update(kv)
-    with open(_os.path.join(THESIS_RUN_DIR, "metrics.jsonl"), "a") as _f:
+    with open(_os.path.join(GPU_BRIDGE_RUN_DIR, "metrics.jsonl"), "a") as _f:
         _f.write(_json.dumps(rec) + "\\n")
 
 def save_checkpoint_file(src, name=None):
     """Copy a checkpoint file or folder into this run's checkpoints/ dir."""
     import shutil
-    d = _os.path.join(THESIS_RUN_DIR, "checkpoints")
+    d = _os.path.join(GPU_BRIDGE_RUN_DIR, "checkpoints")
     _os.makedirs(d, exist_ok=True)
     dst = _os.path.join(d, name or _os.path.basename(_os.path.normpath(src)))
     if _os.path.abspath(src) == _os.path.abspath(dst):
@@ -51,7 +51,7 @@ def save_checkpoint_file(src, name=None):
         shutil.copy(src, dst)
     return dst
 
-SEED = int(_os.environ.get("THESIS_SEED", "0"))
+SEED = int(_os.environ.get("GPU_BRIDGE_SEED", "0"))
 '''
 
 
@@ -88,7 +88,7 @@ def connect_impl(**remember) -> str:
         timeout=30,
     )
     croot = config.CONTENTS_ROOT or (detect.text.strip().splitlines() or ["/content"])[-1]
-    rroot = config.RUN_ROOT or posixpath.join(croot, "thesis_runs")
+    rroot = config.RUN_ROOT or posixpath.join(croot, "gpu_bridge_runs")
     rs.store.set_kernel(url=rs.jupyter.base_url, kernel_id=kid,
                         contents_root=croot, run_root=rroot, **remember)
     rs.jupyter.execute(f"import os;os.makedirs({rroot!r}, exist_ok=True)", timeout=30)
@@ -183,7 +183,7 @@ def launch_impl(script: str, run_name: str, requirements: str = "", env: dict = 
         "import os, subprocess\n"
         f"RUN_DIR = {run_dir!r}\n"
         "os.makedirs(os.path.join(RUN_DIR,'checkpoints'), exist_ok=True)\n"
-        "env = dict(os.environ); env['THESIS_RUN_DIR'] = RUN_DIR\n"
+        "env = dict(os.environ); env['GPU_BRIDGE_RUN_DIR'] = RUN_DIR\n"
         f"{env_lines}"
         "logf = open(os.path.join(RUN_DIR,'run.log'), 'w')\n"
         # start_new_session: a kernel interrupt/restart (signals the kernel's process

@@ -1,4 +1,4 @@
-"""thesis-mcp FastMCP server entrypoint.
+"""gpu-bridge FastMCP server entrypoint.
 
 Registers every tool group and runs over stdio (how Claude Code launches it).
 """
@@ -49,7 +49,7 @@ GPU flavor, show prices with `hf_hardware`, always set a sensible `timeout`, and
 `hf_job_list` to confirm nothing is left running.
 """
 
-mcp = FastMCP("thesis", instructions=INSTRUCTIONS)
+mcp = FastMCP("gpu-bridge", instructions=INSTRUCTIONS)
 
 core.register(mcp)
 notebook.register(mcp)

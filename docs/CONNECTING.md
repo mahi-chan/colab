@@ -1,9 +1,9 @@
 # Connecting both ends
 
-thesis-mcp sits between two things:
+gpu-bridge sits between two things:
 
 ```
-  AI client  ───────────►  thesis-mcp  ───────────►  a machine with a GPU
+  AI client  ───────────►  gpu-bridge  ───────────►  a machine with a GPU
   (Claude, Cursor, ...)    (on your computer)        (Kaggle, Colab, Hugging Face)
 
   done by the installer                              this page
@@ -12,7 +12,7 @@ thesis-mcp sits between two things:
 The installer connects the AI client. This page covers the other end. You need only one
 platform, and for each the manual part is a single one-time step.
 
-`thesis-mcp doctor` shows what is ready at any time (`--online` also checks your Hugging
+`gpu-bridge doctor` shows what is ready at any time (`--online` also checks your Hugging
 Face login against the network). You can also ask the assistant *"how do I connect
 Kaggle?"* — it has the same steps.
 
@@ -26,7 +26,7 @@ Kaggle?"* — it has the same steps.
    before a session may use a GPU or the internet.
 2. Log in on your computer:
    ```bash
-   thesis-mcp login kaggle
+   gpu-bridge login kaggle
    ```
    (Alternative: on the same settings page create an API token and save the downloaded
    `kaggle.json` as `~/.kaggle/kaggle.json`.)
@@ -42,7 +42,7 @@ Kaggle?"* — it has the same steps.
 
 You never open the browser. The session also ends by itself after 30 idle minutes or at
 its time limit (6 hours unless you ask otherwise). Files left in `/kaggle/working` are
-kept on Kaggle as the output of a private notebook named *Thesis MCP Runtime*.
+kept on Kaggle as the output of a private notebook named *GPU Bridge Runtime*.
 
 For a competition, accept its rules on the competition page first; Kaggle refuses to
 attach the data otherwise.
@@ -79,7 +79,7 @@ Good to know:
 1. Create a token with **Write** access at <https://huggingface.co/settings/tokens>.
 2. Log in on your computer:
    ```bash
-   thesis-mcp login huggingface
+   gpu-bridge login huggingface
    ```
 3. Add credits or a payment method at <https://huggingface.co/settings/billing>.
 
@@ -106,10 +106,10 @@ connect with Hugging Face auth. *"Pause my Space"* stops its billing.
 
 ## How a new session finds your computer
 
-A Kaggle or Colab machine cannot be reached from outside, so the program thesis-mcp
+A Kaggle or Colab machine cannot be reached from outside, so the program gpu-bridge
 starts there opens a temporary tunnel and announces the tunnel's address:
 
-- thesis-mcp makes a random one-time code and gives it to the session (inside the script
+- gpu-bridge makes a random one-time code and gives it to the session (inside the script
   it pushes to Kaggle, or in the line you paste into Colab).
 - The session uses the code as its password and posts its address, signed with the code,
   to a relay ([ntfy.sh](https://ntfy.sh) by default) under a name derived from the code.
@@ -117,7 +117,7 @@ starts there opens a temporary tunnel and announces the tunnel's address:
 - Your computer accepts only an address with a valid signature.
 
 The relay sees a tunnel address and nothing else. To use your own
-[ntfy](https://docs.ntfy.sh/install/) server, set `THESIS_RENDEZVOUS_URL` for the AI
+[ntfy](https://docs.ntfy.sh/install/) server, set `GPU_BRIDGE_RENDEZVOUS_URL` for the AI
 client.
 
 ---
@@ -128,17 +128,17 @@ The one-line installer registers the server with every supported client it finds
 manage it by hand:
 
 ```bash
-thesis-mcp clients                    # which clients are found / installed
-thesis-mcp install --client cursor    # one client (repeatable)
-thesis-mcp uninstall                  # remove from all
-thesis-mcp install --print            # the entry to paste into any other client
+gpu-bridge clients                    # which clients are found / installed
+gpu-bridge install --client cursor    # one client (repeatable)
+gpu-bridge uninstall                  # remove from all
+gpu-bridge install --print            # the entry to paste into any other client
 ```
 
 | Client | `--client` name | After installing |
 |--------|-----------------|------------------|
 | Claude Code | `claude-code` | Start a new session |
 | Claude Desktop | `claude-desktop` | Quit and reopen the app |
-| Cursor | `cursor` | Restart; enable `thesis` under Settings → MCP |
+| Cursor | `cursor` | Restart; enable `gpu-bridge` under Settings → MCP |
 | VS Code (GitHub Copilot) | `vscode` | Reload the window; use agent mode |
 | Windsurf | `windsurf` | Restart, or refresh the MCP panel |
 | Cline | `cline` | Reload VS Code |
@@ -146,7 +146,7 @@ thesis-mcp install --print            # the entry to paste into any other client
 | Codex CLI | `codex` | Start a new session |
 
 **Clients that connect by URL** instead of starting a program: run
-`thesis-mcp serve --http` and point the client at `http://127.0.0.1:8765/mcp`. This
+`gpu-bridge serve --http` and point the client at `http://127.0.0.1:8765/mcp`. This
 listens on your own computer only. Do not expose it to the internet: it has no password,
 and whoever reaches it can rent machines on your Hugging Face account. For the same
 reason, chat apps that run only in a browser and need a public server address are not

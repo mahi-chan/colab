@@ -19,8 +19,8 @@ from typing import List, Optional, Tuple
 
 from .. import config
 
-RUNTIME_SLUG = "thesis-mcp-runtime"
-RUNTIME_TITLE = "Thesis MCP Runtime"  # Kaggle derives the slug above from this title
+RUNTIME_SLUG = "gpu-bridge-runtime"
+RUNTIME_TITLE = "GPU Bridge Runtime"  # Kaggle derives the slug above from this title
 
 _api = None
 
@@ -31,7 +31,7 @@ class KaggleNotLoggedIn(RuntimeError):
 
 LOGIN_HELP = (
     "No Kaggle login found on this computer. The user logs in once, in a terminal, with:\n"
-    "    thesis-mcp login kaggle\n"
+    "    gpu-bridge login kaggle\n"
     "(or creates an API token at https://www.kaggle.com/settings and saves it as "
     "~/.kaggle/kaggle.json). Then try again."
 )

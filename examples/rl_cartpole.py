@@ -6,7 +6,7 @@
         requirements="gymnasium[classic-control] stable-baselines3",
     )
 
-`log_metric`, `save_checkpoint_file`, `THESIS_RUN_DIR` and `SEED` are injected by the
+`log_metric`, `save_checkpoint_file`, `GPU_BRIDGE_RUN_DIR` and `SEED` are injected by the
 MCP at launch time — you do not import them.
 """
 
@@ -31,6 +31,6 @@ env = make_vec_env("CartPole-v1", n_envs=1, seed=SEED)  # noqa: F821  (SEED inje
 model = PPO("MlpPolicy", env, seed=SEED, verbose=0)      # noqa: F821
 model.learn(total_timesteps=50_000, callback=RewardLogger())
 
-ckpt = os.path.join(THESIS_RUN_DIR, "checkpoints", "ppo_cartpole")  # noqa: F821
+ckpt = os.path.join(GPU_BRIDGE_RUN_DIR, "checkpoints", "ppo_cartpole")  # noqa: F821
 model.save(ckpt)
 print("training complete; saved", ckpt)

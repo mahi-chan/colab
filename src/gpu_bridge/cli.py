@@ -1,4 +1,4 @@
-"""Command line of thesis-mcp.
+"""Command line of gpu-bridge.
 
 With no arguments it serves MCP over stdio, which is what AI clients run. The other
 commands set it up: ``install`` registers it with AI clients, ``login`` logs in to Kaggle
@@ -16,7 +16,7 @@ def _serve(args: argparse.Namespace) -> int:
     if getattr(args, "http", False):
         mcp.settings.host = args.host
         mcp.settings.port = args.port
-        print(f"thesis-mcp serving on http://{args.host}:{args.port}/mcp", file=sys.stderr)
+        print(f"gpu-bridge serving on http://{args.host}:{args.port}/mcp", file=sys.stderr)
         mcp.run(transport="streamable-http")
     else:
         mcp.run()
@@ -44,7 +44,7 @@ def _clients(_args: argparse.Namespace) -> int:
 
 
 def _login(args: argparse.Namespace) -> int:
-    """Hand over to the platform's own login program; nothing is stored by thesis-mcp."""
+    """Hand over to the platform's own login program; nothing is stored by gpu-bridge."""
     import subprocess
     from pathlib import Path
 
@@ -71,7 +71,7 @@ def build_parser() -> argparse.ArgumentParser:
     from .installer import CLIENTS
 
     parser = argparse.ArgumentParser(
-        prog="thesis-mcp",
+        prog="gpu-bridge",
         description="Run ML work on Colab, Kaggle and Hugging Face GPUs from an AI assistant. "
                     "With no command, serves MCP over stdio.")
     sub = parser.add_subparsers(dest="command")

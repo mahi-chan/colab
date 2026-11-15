@@ -21,7 +21,7 @@ Settings come from environment variables (set them with env_json):
     TEXT_FIELD   the column holding the training text
     MAX_STEPS, BATCH_SIZE, LEARNING_RATE, MAX_LENGTH, LORA_R
 
-`log_metric`, `save_checkpoint_file`, `THESIS_RUN_DIR` and `SEED` are injected at launch
+`log_metric`, `save_checkpoint_file`, `GPU_BRIDGE_RUN_DIR` and `SEED` are injected at launch
 time — you do not import them. For chat-formatted supervised fine-tuning of larger
 models, the same pattern works with TRL's SFTTrainer.
 """
@@ -83,7 +83,7 @@ class MetricLogger(TrainerCallback):
             log_metric(step=state.global_step, **numbers)  # noqa: F821  (injected)
 
 
-work_dir = os.path.join(THESIS_RUN_DIR, "work")  # noqa: F821  (injected)
+work_dir = os.path.join(GPU_BRIDGE_RUN_DIR, "work")  # noqa: F821  (injected)
 trainer = Trainer(
     model=model,
     args=TrainingArguments(

@@ -55,7 +55,7 @@ def run_root() -> str:
     return (
         config.RUN_ROOT
         or store.get_kernel().get("run_root")
-        or posixpath.join(contents_root(), "thesis_runs")
+        or posixpath.join(contents_root(), "gpu_bridge_runs")
     )
 
 

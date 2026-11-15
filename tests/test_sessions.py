@@ -18,11 +18,11 @@ import pytest
 import requests
 from conftest import call, free_port, remote_env
 
-from thesis_mcp import config
-from thesis_mcp import runtime_state as rs
-from thesis_mcp.connectors import pairing
-from thesis_mcp.remote import entrypoint as remote
-from thesis_mcp.tools import sessions
+from gpu_bridge import config
+from gpu_bridge import runtime_state as rs
+from gpu_bridge.connectors import pairing
+from gpu_bridge.remote import entrypoint as remote
+from gpu_bridge.tools import sessions
 
 
 @pytest.fixture
@@ -32,10 +32,10 @@ def machine(tmp_path):
 
     def run(argv, extra_env=None):
         port = free_port()
-        env = {**remote_env(tmp_path / "hub.jsonl"), "THESIS_PORT": str(port),
-               "THESIS_PUBLIC_URL": f"http://127.0.0.1:{port}", "THESIS_ROOT": str(tmp_path / f"root-{port}"),
-               "THESIS_WATCH_SECONDS": "1", **(extra_env or {})}
-        os.makedirs(env["THESIS_ROOT"])
+        env = {**remote_env(tmp_path / "hub.jsonl"), "GPU_BRIDGE_PORT": str(port),
+               "GPU_BRIDGE_PUBLIC_URL": f"http://127.0.0.1:{port}", "GPU_BRIDGE_ROOT": str(tmp_path / f"root-{port}"),
+               "GPU_BRIDGE_WATCH_SECONDS": "1", **(extra_env or {})}
+        os.makedirs(env["GPU_BRIDGE_ROOT"])
         proc = subprocess.Popen(argv, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
         procs.append(proc)
         return proc, env
@@ -97,13 +97,13 @@ def test_colab_one_line_pairs_without_copying_anything_back(rendezvous, machine,
     # Run what the line runs: the program from the URL, with the pairing code as argument,
     # and the non-default rendezvous address the line carries.
     words = shlex.split(line.split("|", 1)[1])
-    assert words[0] == f"THESIS_RENDEZVOUS_URL={rendezvous['url']}"
+    assert words[0] == f"GPU_BRIDGE_RENDEZVOUS_URL={rendezvous['url']}"
     code = words[-1]
     proc, env = machine([sys.executable, str(pairing.ENTRYPOINT_PATH), code],
-                        {"THESIS_RENDEZVOUS_URL": rendezvous["url"]})
+                        {"GPU_BRIDGE_RENDEZVOUS_URL": rendezvous["url"]})
 
     text, _ = call("connect_runtime", wait_seconds=60)
-    assert "kernel" in text and env["THESIS_ROOT"] in text, text
+    assert "kernel" in text and env["GPU_BRIDGE_ROOT"] in text, text
     assert call("run_code", code="print(6 * 7)")[0].strip() == "42"
     assert list(rendezvous["topics"]) == [remote.topic_for(code)]
 
@@ -150,10 +150,10 @@ def test_kaggle_session_starts_and_pairs_through_its_own_log(kaggle, machine):
 
     text, _ = call("kaggle_runtime_start", competition="titanic", datasets="owner/data, other/set",
                    idle_minutes=20, max_hours=2)
-    assert "Started a Kaggle GPU session (https://www.kaggle.com/code/alice/thesis-mcp-runtime)" in text
+    assert "Started a Kaggle GPU session (https://www.kaggle.com/code/alice/gpu-bridge-runtime)" in text
     assert kaggle.kernels_push.call_args.kwargs == {"timeout": "7200"}
     meta, script = pushed(kaggle)
-    assert meta["id"] == "alice/thesis-mcp-runtime" and slugify(meta["title"]) == "thesis-mcp-runtime"
+    assert meta["id"] == "alice/gpu-bridge-runtime" and slugify(meta["title"]) == "gpu-bridge-runtime"
     assert meta["enable_gpu"] is True and meta["enable_internet"] is True and meta["is_private"] is True
     assert meta["competition_sources"] == ["titanic"] and meta["dataset_sources"] == ["owner/data", "other/set"]
     assert (meta["kernel_type"], meta["language"]) == ("script", "python")
@@ -179,9 +179,9 @@ def test_kaggle_session_starts_and_pairs_through_its_own_log(kaggle, machine):
 
     kaggle.kernels_logs.side_effect = read_log
     text, _ = call("connect_runtime", wait_seconds=60)
-    assert "kernel" in text and env["THESIS_ROOT"] in text, text
+    assert "kernel" in text and env["GPU_BRIDGE_ROOT"] in text, text
     assert rs.store.get_kernel()["platform"] == "kaggle"
-    assert call("run_code", code="import os; print(os.environ['THESIS_IDLE_MINUTES'])")[0].strip() == "20"
+    assert call("run_code", code="import os; print(os.environ['GPU_BRIDGE_IDLE_MINUTES'])")[0].strip() == "20"
 
     stop, _ = call("runtime_stop")
     assert "Stopping the kaggle session" in stop and "/kaggle/working" in stop
@@ -221,7 +221,7 @@ def test_kaggle_library_keys_we_rely_on(kaggle):
 
     with contextlib.redirect_stdout(io.StringIO()):
         from kaggle.api.kaggle_api_extended import KaggleApi
-    from thesis_mcp.connectors import kaggle_api
+    from gpu_bridge.connectors import kaggle_api
 
     assert (KaggleApi.CONFIG_NAME_USER, KaggleApi.CONFIG_NAME_KEY, KaggleApi.CONFIG_NAME_TOKEN) == \
         ("username", "key", "token")
@@ -240,8 +240,8 @@ def test_tunnel_address_is_read_from_the_tunnel_program(rendezvous, tmp_path):
                       "echo 'INF |  https://calm-river-demo.trycloudflare.com  |'\nsleep 600\n")
     tunnel.chmod(0o755)
     code = pairing.new_code()
-    env = {**remote_env(tmp_path / "hub.jsonl"), "THESIS_ROOT": str(root), "THESIS_WATCH_SECONDS": "1",
-           "THESIS_RENDEZVOUS_URL": rendezvous["url"]}
+    env = {**remote_env(tmp_path / "hub.jsonl"), "GPU_BRIDGE_ROOT": str(root), "GPU_BRIDGE_WATCH_SECONDS": "1",
+           "GPU_BRIDGE_RENDEZVOUS_URL": rendezvous["url"]}
     proc = subprocess.Popen([sys.executable, str(pairing.ENTRYPOINT_PATH), code], env=env,
                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     try:
@@ -258,8 +258,8 @@ def test_tunnel_address_is_read_from_the_tunnel_program(rendezvous, tmp_path):
 def test_run_by_hand_it_prints_the_address_and_a_token(tmp_path):
     """Without a pairing code the program still works: it prints what to give the assistant."""
     port = free_port()
-    env = {**remote_env(tmp_path / "hub.jsonl"), "THESIS_ROOT": str(tmp_path), "THESIS_PORT": str(port),
-           "THESIS_PUBLIC_URL": f"http://127.0.0.1:{port}", "THESIS_WATCH_SECONDS": "1"}
+    env = {**remote_env(tmp_path / "hub.jsonl"), "GPU_BRIDGE_ROOT": str(tmp_path), "GPU_BRIDGE_PORT": str(port),
+           "GPU_BRIDGE_PUBLIC_URL": f"http://127.0.0.1:{port}", "GPU_BRIDGE_WATCH_SECONDS": "1"}
     proc = subprocess.Popen([sys.executable, str(pairing.ENTRYPOINT_PATH)], env=env,
                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     try:
@@ -277,7 +277,7 @@ def test_run_by_hand_it_prints_the_address_and_a_token(tmp_path):
 
 
 def test_doctor_reports_every_platform(kaggle):
-    from thesis_mcp import doctor
+    from gpu_bridge import doctor
 
     report = doctor.endpoints()
     assert "Kaggle: logged in as alice" in report and "Hugging Face: token found" in report

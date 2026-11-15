@@ -1,4 +1,4 @@
-"""``python -m thesis_mcp`` — how installed AI clients start the server."""
+"""``python -m gpu_bridge`` — how installed AI clients start the server."""
 
 from .cli import main
 

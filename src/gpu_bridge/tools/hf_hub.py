@@ -25,7 +25,7 @@ hub.create_repo(repo_id, private=private, exist_ok=True)
 hub.upload_folder(
     folder_path=run_dir, repo_id=repo_id,
     ignore_patterns=["pid", "*.pid", "hub_push.*", "_hub_push.py", "_*.png", "checkpoints_bundle.zip"],
-    commit_message="Upload run from thesis-mcp",
+    commit_message="Upload run from gpu-bridge",
 )
 print("PUSH_DONE https://huggingface.co/" + repo_id)
 '''

@@ -6,7 +6,7 @@
         requirements="torch torchvision",
     )
 
-`log_metric`, `THESIS_RUN_DIR` and `SEED` are injected by the MCP at launch time.
+`log_metric`, `GPU_BRIDGE_RUN_DIR` and `SEED` are injected by the MCP at launch time.
 Visualize afterwards with cv_training_curves("mnist_cnn").
 """
 
@@ -62,6 +62,6 @@ for epoch in range(3):
             correct += (net(x).argmax(1) == y).sum().item()
             total += len(y)
     log_metric(step=(epoch + 1) * len(train_dl), val_acc=correct / total)  # noqa: F821
-    torch.save(net.state_dict(), os.path.join(THESIS_RUN_DIR, "checkpoints", f"mnist_e{epoch}.pt"))  # noqa: F821
+    torch.save(net.state_dict(), os.path.join(GPU_BRIDGE_RUN_DIR, "checkpoints", f"mnist_e{epoch}.pt"))  # noqa: F821
 
 print("training complete")

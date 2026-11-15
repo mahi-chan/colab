@@ -1,35 +1,35 @@
-# thesis-mcp installer for Windows (PowerShell).
+# gpu-bridge installer for Windows (PowerShell).
 #
-#   irm https://raw.githubusercontent.com/mahi-chan/colab/claude/mcp-colab-kaggle-3nheg4/install.ps1 | iex
+#   irm https://raw.githubusercontent.com/mahi-chan/gpu-bridge/main/install.ps1 | iex
 #
-# It downloads thesis-mcp to %USERPROFILE%\.thesis-mcp\app, sets up its Python environment,
-# registers it with every AI client found on this computer, and adds a `thesis-mcp` command.
+# It downloads gpu-bridge to %USERPROFILE%\.gpu-bridge\app, sets up its Python environment,
+# registers it with every AI client found on this computer, and adds a `gpu-bridge` command.
 # Run the same line again to update. To pass options, set them first:
 #
-#   $env:THESIS_MCP_ARGS = "--client cursor"; irm <same address> | iex
+#   $env:GPU_BRIDGE_ARGS = "--client cursor"; irm <same address> | iex
 #
 # Inside a checkout of the repository, `.\install.ps1` installs from that checkout instead.
 
-function Install-ThesisMcp {
+function Install-GpuBridge {
     $ErrorActionPreference = "Stop"
     $ProgressPreference = "SilentlyContinue"   # downloads are far faster without the progress bar
 
-    $Repo   = if ($env:THESIS_MCP_REPO_SLUG) { $env:THESIS_MCP_REPO_SLUG } else { "mahi-chan/colab" }
-    $Branch = if ($env:THESIS_MCP_BRANCH) { $env:THESIS_MCP_BRANCH } else { "claude/mcp-colab-kaggle-3nheg4" }
-    $AppDir = if ($env:THESIS_MCP_DIR) { $env:THESIS_MCP_DIR } else { Join-Path $env:USERPROFILE ".thesis-mcp\app" }
-    $BinDir = if ($env:THESIS_MCP_BIN) { $env:THESIS_MCP_BIN } else { Join-Path $env:USERPROFILE ".local\bin" }
+    $Repo   = if ($env:GPU_BRIDGE_REPO_SLUG) { $env:GPU_BRIDGE_REPO_SLUG } else { "mahi-chan/gpu-bridge" }
+    $Branch = if ($env:GPU_BRIDGE_BRANCH) { $env:GPU_BRIDGE_BRANCH } else { "main" }
+    $AppDir = if ($env:GPU_BRIDGE_DIR) { $env:GPU_BRIDGE_DIR } else { Join-Path $env:USERPROFILE ".gpu-bridge\app" }
+    $BinDir = if ($env:GPU_BRIDGE_BIN) { $env:GPU_BRIDGE_BIN } else { Join-Path $env:USERPROFILE ".local\bin" }
     $InstallArgs = @($args)
-    if ($env:THESIS_MCP_ARGS) { $InstallArgs += $env:THESIS_MCP_ARGS.Split(" ", [StringSplitOptions]::RemoveEmptyEntries) }
+    if ($env:GPU_BRIDGE_ARGS) { $InstallArgs += $env:GPU_BRIDGE_ARGS.Split(" ", [StringSplitOptions]::RemoveEmptyEntries) }
     $StartDir = (Get-Location).Path
 
     try {
         # 1. Find the code: this checkout if we are in one, otherwise download it.
         $Project = Join-Path $StartDir "pyproject.toml"
-        if ((Test-Path $Project) -and (Select-String -Path $Project -Pattern '^name = "thesis-mcp"' -Quiet)) {
+        if ((Test-Path $Project) -and (Select-String -Path $Project -Pattern '^name = "gpu-bridge"' -Quiet)) {
             $AppDir = $StartDir
             Write-Host "Using the checkout at $AppDir"
         } else {
-            Write-Host "Downloading thesis-mcp to $AppDir"
+            Write-Host "Downloading gpu-bridge to $AppDir"
             $New = "$AppDir.new"
             $Zip = "$AppDir.zip"
             if (Test-Path $New) { Remove-Item -Recurse -Force $New }
@@ -63,10 +63,10 @@ function Install-ThesisMcp {
         uv sync --locked --no-dev --inexact --quiet
         if ($LASTEXITCODE -ne 0) { throw "Installing dependencies failed." }
 
-        # 4. Add a `thesis-mcp` command.
-        $Exe = Join-Path $AppDir ".venv\Scripts\thesis-mcp.exe"
+        # 4. Add a `gpu-bridge` command.
+        $Exe = Join-Path $AppDir ".venv\Scripts\gpu-bridge.exe"
         New-Item -ItemType Directory -Force -Path $BinDir | Out-Null
-        Set-Content -Path (Join-Path $BinDir "thesis-mcp.cmd") -Value "@`"$Exe`" %*" -Encoding ASCII
+        Set-Content -Path (Join-Path $BinDir "gpu-bridge.cmd") -Value "@`"$Exe`" %*" -Encoding ASCII
         $UserPath = [Environment]::GetEnvironmentVariable("Path", "User")
         if (-not (($UserPath -split ";") -contains $BinDir)) {
             [Environment]::SetEnvironmentVariable("Path", "$BinDir;$UserPath", "User")
@@ -78,10 +78,10 @@ function Install-ThesisMcp {
         if ($LASTEXITCODE -ne 0) { throw "Registering with AI clients failed." }
 
         Write-Host ""
-        Write-Host "The 'thesis-mcp' command is available in new terminals."
+        Write-Host "The 'gpu-bridge' command is available in new terminals."
     } finally {
         Set-Location $StartDir
     }
 }
 
-Install-ThesisMcp @args
+Install-GpuBridge @args

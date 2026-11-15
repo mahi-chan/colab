@@ -33,9 +33,9 @@ def pending() -> dict:
 def _kaggle_script(code: str, idle_minutes: int) -> str:
     """The runtime program with its settings in front, as one script for Kaggle to run."""
     settings = {
-        "THESIS_PAIR_CODE": code,
-        "THESIS_IDLE_MINUTES": str(int(idle_minutes)),
-        "THESIS_RENDEZVOUS_URL": config.RENDEZVOUS_URL,
+        "GPU_BRIDGE_PAIR_CODE": code,
+        "GPU_BRIDGE_IDLE_MINUTES": str(int(idle_minutes)),
+        "GPU_BRIDGE_RENDEZVOUS_URL": config.RENDEZVOUS_URL,
     }
     return (f"import os\nos.environ.update({json.dumps(settings)})\n\n"
             + pairing.entrypoint_source()
@@ -50,12 +50,12 @@ def _colab_line(code: str) -> str:
         if served.status_code == 200 and remote.ANNOUNCE_MARKER in served.text:
             line = pairing.colab_command(code)
             if config.RENDEZVOUS_URL != remote.DEFAULT_RENDEZVOUS:
-                line = line.replace("| python3", f"| THESIS_RENDEZVOUS_URL={config.RENDEZVOUS_URL} python3")
+                line = line.replace("| python3", f"| GPU_BRIDGE_RENDEZVOUS_URL={config.RENDEZVOUS_URL} python3")
             return line
     except requests.RequestException:
         pass
     blob = base64.b64encode(zlib.compress(pairing.entrypoint_source().encode(), 9)).decode()
-    return ("import os,base64,zlib;os.environ.update(THESIS_PAIR_CODE=%r,THESIS_RENDEZVOUS_URL=%r);"
+    return ("import os,base64,zlib;os.environ.update(GPU_BRIDGE_PAIR_CODE=%r,GPU_BRIDGE_RENDEZVOUS_URL=%r);"
             "exec(compile(zlib.decompress(base64.b64decode(%r)),'entrypoint.py','exec'))"
             % (code, config.RENDEZVOUS_URL, blob))
 
@@ -179,7 +179,7 @@ def register(mcp, connect_impl):
                         f"here. Stop it on its page ({pair.get('page')}), or it ends by itself "
                         "after the idle time.")
             return "No Colab/Kaggle session started from here is connected."
-        stop_file = rs.contents_root().rstrip("/") + "/.thesis_stop"
+        stop_file = rs.contents_root().rstrip("/") + "/.gpu_bridge_stop"
         result = rs.jupyter.execute(f"open({stop_file!r}, 'w').close(); print('stop requested')",
                                     timeout=30)
         platform = saved.get("platform", "session")

@@ -1,6 +1,6 @@
 """Shared test setup.
 
-Environment is fixed *before* thesis_mcp is imported, so tests never touch the real
+Environment is fixed *before* gpu_bridge is imported, so tests never touch the real
 state directory, a real Hugging Face login, or a real runtime.
 """
 
@@ -17,19 +17,19 @@ from unittest import mock
 
 import pytest
 
-os.environ["THESIS_STATE_DIR"] = tempfile.mkdtemp(prefix="thesis-mcp-test-state-")
+os.environ["GPU_BRIDGE_STATE_DIR"] = tempfile.mkdtemp(prefix="gpu-bridge-test-state-")
 os.environ["HF_TOKEN"] = "hf_test_token"
-os.environ["KAGGLE_CONFIG_DIR"] = tempfile.mkdtemp(prefix="thesis-mcp-test-kaggle-")  # no login
-for _var in ("JUPYTER_URL", "JUPYTER_TOKEN", "THESIS_CONTENTS_ROOT", "THESIS_RUN_ROOT",
-             "KAGGLE_USERNAME", "KAGGLE_KEY", "KAGGLE_API_TOKEN", "THESIS_RENDEZVOUS_URL"):
+os.environ["KAGGLE_CONFIG_DIR"] = tempfile.mkdtemp(prefix="gpu-bridge-test-kaggle-")  # no login
+for _var in ("JUPYTER_URL", "JUPYTER_TOKEN", "GPU_BRIDGE_CONTENTS_ROOT", "GPU_BRIDGE_RUN_ROOT",
+             "KAGGLE_USERNAME", "KAGGLE_KEY", "KAGGLE_API_TOKEN", "GPU_BRIDGE_RENDEZVOUS_URL"):
     os.environ.pop(_var, None)
 
 from huggingface_hub import HfApi  # noqa: E402
 
-from thesis_mcp import runtime_state as rs  # noqa: E402
-from thesis_mcp import server  # noqa: E402
-from thesis_mcp import config  # noqa: E402
-from thesis_mcp.connectors import hf, kaggle_api  # noqa: E402
+from gpu_bridge import runtime_state as rs  # noqa: E402
+from gpu_bridge import server  # noqa: E402
+from gpu_bridge import config  # noqa: E402
+from gpu_bridge.connectors import hf, kaggle_api  # noqa: E402
 
 STUBS = str(Path(__file__).parent / "stubs")
 JUPYTER_TOKEN = "test-jupyter-token"

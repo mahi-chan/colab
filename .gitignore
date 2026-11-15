@@ -9,7 +9,7 @@ venv/
 
 # Local MCP config, state and secrets — never commit these
 .mcp.json
-.thesis-mcp/
+.gpu-bridge/
 kaggle.json
 .kaggle/
 .env

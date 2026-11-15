@@ -23,23 +23,23 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     env:
-      THESIS_MCP_BRANCH: ${{ github.head_ref || github.ref_name }}
-      THESIS_MCP_REPO_SLUG: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+      GPU_BRIDGE_BRANCH: ${{ github.head_ref || github.ref_name }}
+      GPU_BRIDGE_REPO_SLUG: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
 
       # The one-line form: the script is piped in from outside any checkout, downloads the
-      # project itself, and must leave a working `thesis-mcp` command behind.
+      # project itself, and must leave a working `gpu-bridge` command behind.
       - name: One-line install (macOS, Linux)
         if: runner.os != 'Windows'
         run: |
           mkdir -p "$HOME/.cursor" "$HOME/.gemini"
           cd "$RUNNER_TEMP"
           cat "$GITHUB_WORKSPACE/install.sh" | sh
-          "$HOME/.local/bin/thesis-mcp" clients | tee clients.txt
+          "$HOME/.local/bin/gpu-bridge" clients | tee clients.txt
           grep -Eq "^cursor +yes +yes" clients.txt && grep -Eq "^gemini +yes +yes" clients.txt
-          "$HOME/.local/bin/thesis-mcp" doctor
+          "$HOME/.local/bin/gpu-bridge" doctor
       - name: One-line install (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
@@ -47,7 +47,7 @@ jobs:
           New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\.cursor", "$env:USERPROFILE\.gemini" | Out-Null
           Set-Location $env:RUNNER_TEMP
           Get-Content "$env:GITHUB_WORKSPACE\install.ps1" -Raw | Invoke-Expression
-          $shim = "$env:USERPROFILE\.local\bin\thesis-mcp.cmd"
+          $shim = "$env:USERPROFILE\.local\bin\gpu-bridge.cmd"
           $clients = & $shim clients
           $clients
           if (-not ($clients -match "^cursor +yes +yes")) { throw "cursor is not installed" }
@@ -65,7 +65,7 @@ jobs:
       - name: Check every requested client is registered
         shell: bash
         run: |
-          uv run --no-sync thesis-mcp clients | tee clients.txt
+          uv run --no-sync gpu-bridge clients | tee clients.txt
           for c in vscode codex claude-desktop; do
             grep -Eq "^$c +yes +yes" clients.txt || { echo "$c is not installed"; exit 1; }
           done

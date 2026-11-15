@@ -68,7 +68,7 @@ def entrypoint_source() -> str:
 
 def entrypoint_url() -> str:
     return (f"https://raw.githubusercontent.com/{config.REPO_SLUG}/{config.REPO_BRANCH}"
-            "/src/thesis_mcp/remote/entrypoint.py")
+            "/src/gpu_bridge/remote/entrypoint.py")
 
 
 def colab_command(code: str) -> str:

@@ -43,7 +43,7 @@ def run_kaggle(args: list, timeout: int = 300) -> str:
 
 def register(mcp):
     @mcp.tool()
-    def kaggle_submit(competition: str, file: str, message: str = "via thesis-mcp") -> str:
+    def kaggle_submit(competition: str, file: str, message: str = "via gpu-bridge") -> str:
         """Submit a file to a competition.
 
         file: a path on this computer, or a path on the connected runtime (for example a
@@ -52,7 +52,7 @@ def register(mcp):
         if kaggle_api.logged_in() and not os.path.exists(file):
             if not rs.jupyter.connected:
                 return f"No file {file!r} on this computer, and no runtime is connected to fetch it from."
-            local = os.path.join(tempfile.mkdtemp(prefix="thesis-mcp-submit-"), posixpath.basename(file))
+            local = os.path.join(tempfile.mkdtemp(prefix="gpu-bridge-submit-"), posixpath.basename(file))
             with open(local, "wb") as f:
                 f.write(rs.jupyter.download_bytes(rs.to_rel(file)))
             file = local

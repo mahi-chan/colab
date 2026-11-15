@@ -2,7 +2,7 @@
 
 Thin layer over the shared core: the heavy lifting (launch, poll, checkpoint) is
 generic; RL only adds environment provisioning, reward plotting, episode rendering,
-and multi-seed launches (RL results are seed-sensitive, so a defensible thesis
+and multi-seed launches (RL results are seed-sensitive, so a defensible result
 reports several seeds).
 """
 
@@ -130,7 +130,7 @@ def register(mcp):
         """Launch the same training script across several seeds as separate runs.
 
         seeds: comma-separated, e.g. "0,1,2". Each becomes a run '<run_name>_s<seed>'
-        with THESIS_SEED set (read it as ``SEED`` in your script). Poll each run by name.
+        with GPU_BRIDGE_SEED set (read it as ``SEED`` in your script). Poll each run by name.
         hf_flavor: leave empty to run all seeds on the connected runtime. Set a Hugging Face
                    machine type (e.g. "t4-small") to give every seed its own rented job,
                    so they train in parallel; each is billed separately, up to hf_timeout.
@@ -141,7 +141,7 @@ def register(mcp):
         launched = []
         for s in seed_list:
             name = f"{run_name}_s{s}"
-            env = {"THESIS_SEED": s}
+            env = {"GPU_BRIDGE_SEED": s}
             if hf_flavor:
                 ok, msg = hf_jobs.launch_job_impl(script, name, hf_flavor, hf_timeout,
                                                   requirements, env)

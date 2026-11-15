@@ -9,7 +9,7 @@ import os
 
 _KNOWN_VARS = (
     "JUPYTER_URL", "JUPYTER_TOKEN", "HF_TOKEN",
-    "THESIS_STATE_DIR", "THESIS_CONTENTS_ROOT", "THESIS_RUN_ROOT", "THESIS_HF_IMAGE",
+    "GPU_BRIDGE_STATE_DIR", "GPU_BRIDGE_CONTENTS_ROOT", "GPU_BRIDGE_RUN_ROOT", "GPU_BRIDGE_HF_IMAGE",
     "KAGGLE_USERNAME", "KAGGLE_KEY", "KAGGLE_API_TOKEN",
 )
 
@@ -21,7 +21,7 @@ for _name in _KNOWN_VARS:
         del os.environ[_name]
 
 # Where the local run registry + remembered kernel id are stored (user's machine).
-STATE_DIR = os.environ.get("THESIS_STATE_DIR") or os.path.expanduser("~/.thesis-mcp")
+STATE_DIR = os.environ.get("GPU_BRIDGE_STATE_DIR") or os.path.expanduser("~/.gpu-bridge")
 
 # Connection to the Jupyter server running inside the Colab/Kaggle VM.
 JUPYTER_URL = os.environ.get("JUPYTER_URL", "").rstrip("/")
@@ -29,18 +29,18 @@ JUPYTER_TOKEN = os.environ.get("JUPYTER_TOKEN", "")
 
 # Optional overrides. When empty these are auto-detected on connect
 # (/content for Colab, /kaggle/working for Kaggle, the server root elsewhere).
-CONTENTS_ROOT = os.environ.get("THESIS_CONTENTS_ROOT", "")
-RUN_ROOT = os.environ.get("THESIS_RUN_ROOT", "")
+CONTENTS_ROOT = os.environ.get("GPU_BRIDGE_CONTENTS_ROOT", "")
+RUN_ROOT = os.environ.get("GPU_BRIDGE_RUN_ROOT", "")
 
 # Docker image for the interactive Hugging Face runtime (hf_runtime_start).
-HF_RUNTIME_IMAGE = (os.environ.get("THESIS_HF_IMAGE")
+HF_RUNTIME_IMAGE = (os.environ.get("GPU_BRIDGE_HF_IMAGE")
                     or "pytorch/pytorch:2.6.0-cuda12.4-cudnn9-runtime")
 
 # Where this project lives on GitHub. The Colab one-liner downloads the runtime program
 # from here; change these two when the project moves (for example after merging to main).
-REPO_SLUG = os.environ.get("THESIS_MCP_REPO_SLUG") or "mahi-chan/colab"
-REPO_BRANCH = os.environ.get("THESIS_MCP_BRANCH") or "claude/mcp-colab-kaggle-3nheg4"
+REPO_SLUG = os.environ.get("GPU_BRIDGE_REPO_SLUG") or "mahi-chan/gpu-bridge"
+REPO_BRANCH = os.environ.get("GPU_BRIDGE_BRANCH") or "main"
 
 # Service a freshly started Colab/Kaggle session uses to tell this computer its address.
 # Any ntfy-compatible server works; only a signed tunnel address ever passes through it.
-RENDEZVOUS_URL = (os.environ.get("THESIS_RENDEZVOUS_URL") or "https://ntfy.sh").rstrip("/")
+RENDEZVOUS_URL = (os.environ.get("GPU_BRIDGE_RENDEZVOUS_URL") or "https://ntfy.sh").rstrip("/")

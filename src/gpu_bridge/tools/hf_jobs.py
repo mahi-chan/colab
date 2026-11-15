@@ -30,7 +30,7 @@ from .. import config
 from .. import runtime_state as rs
 from ..connectors import hf
 
-METRIC_MARKER = "@@THESIS_METRIC@@"
+METRIC_MARKER = "@@GPU_BRIDGE_METRIC@@"
 RUNTIME_PORT = 8888
 RUNTIME_ROOT = "/workspace"
 ACTIVE_STAGES = ("RUNNING", "SCHEDULING")
@@ -41,29 +41,29 @@ ACTIVE_STAGES = ("RUNNING", "SCHEDULING")
 # keeps) and checkpoints go straight to a private Hub repo.
 JOB_PREAMBLE = '''\
 import os as _os, json as _json, time as _time
-THESIS_RUN_DIR = _os.environ.get("THESIS_RUN_DIR") or "/tmp/thesis_run"
-_os.makedirs(_os.path.join(THESIS_RUN_DIR, "checkpoints"), exist_ok=True)
-THESIS_HUB_REPO = _os.environ.get("THESIS_HUB_REPO", "")
+GPU_BRIDGE_RUN_DIR = _os.environ.get("GPU_BRIDGE_RUN_DIR") or "/tmp/gpu_bridge_run"
+_os.makedirs(_os.path.join(GPU_BRIDGE_RUN_DIR, "checkpoints"), exist_ok=True)
+GPU_BRIDGE_HUB_REPO = _os.environ.get("GPU_BRIDGE_HUB_REPO", "")
 
 def log_metric(step=None, **kv):
     """Record one metrics row (read back by get_metrics / plot_metrics)."""
     rec = {"t": _time.time(), "step": step}
     rec.update(kv)
-    print("@@THESIS_METRIC@@" + _json.dumps(rec), flush=True)
+    print("@@GPU_BRIDGE_METRIC@@" + _json.dumps(rec), flush=True)
 
 def save_checkpoint_file(src, name=None):
     """Upload a checkpoint file or folder to this run's private Hub repo."""
     from huggingface_hub import HfApi
     hub = HfApi()
-    hub.create_repo(THESIS_HUB_REPO, private=True, exist_ok=True)
+    hub.create_repo(GPU_BRIDGE_HUB_REPO, private=True, exist_ok=True)
     dest = name or _os.path.basename(_os.path.normpath(src))
     if _os.path.isdir(src):
-        hub.upload_folder(folder_path=src, repo_id=THESIS_HUB_REPO, path_in_repo=dest)
+        hub.upload_folder(folder_path=src, repo_id=GPU_BRIDGE_HUB_REPO, path_in_repo=dest)
     else:
-        hub.upload_file(path_or_fileobj=src, path_in_repo=dest, repo_id=THESIS_HUB_REPO)
-    return THESIS_HUB_REPO + "/" + dest
+        hub.upload_file(path_or_fileobj=src, path_in_repo=dest, repo_id=GPU_BRIDGE_HUB_REPO)
+    return GPU_BRIDGE_HUB_REPO + "/" + dest
 
-SEED = int(_os.environ.get("THESIS_SEED", "0"))
+SEED = int(_os.environ.get("GPU_BRIDGE_SEED", "0"))
 '''
 
 
@@ -172,7 +172,7 @@ def launch_job_impl(script: str, run_name: str, flavor: str, timeout: str,
     script_path = script_dir / "train.py"
     script_path.write_text(JOB_PREAMBLE + "\n# ---- user script ----\n" + script)
 
-    job_env = {"THESIS_HUB_REPO": hub_repo}
+    job_env = {"GPU_BRIDGE_HUB_REPO": hub_repo}
     job_env.update({str(k): str(v) for k, v in (env or {}).items()})
     job = hf.api().run_uv_job(
         str(script_path),
@@ -183,7 +183,7 @@ def launch_job_impl(script: str, run_name: str, flavor: str, timeout: str,
         flavor=flavor,
         timeout=timeout,
         name=run_name,
-        labels={"thesis-mcp": "run"},
+        labels={"gpu-bridge": "run"},
     )
     rs.store.new_run(run_name, "", meta={
         "backend": "hf_job", "job_id": job.id, "url": job.url, "flavor": flavor,
@@ -306,17 +306,17 @@ def register(mcp, connect_impl):
             image=image,
             command=["python3", "-c", boot, base64.b64encode(zlib.compress(entrypoint, 9)).decode()],
             env={
-                "THESIS_PORT": str(RUNTIME_PORT),
-                "THESIS_ROOT": RUNTIME_ROOT,
-                "THESIS_IDLE_MINUTES": str(int(idle_minutes)),
-                "THESIS_ARCHIVE_REPO": f"{hf.username()}/thesis-mcp-archive",
+                "GPU_BRIDGE_PORT": str(RUNTIME_PORT),
+                "GPU_BRIDGE_ROOT": RUNTIME_ROOT,
+                "GPU_BRIDGE_IDLE_MINUTES": str(int(idle_minutes)),
+                "GPU_BRIDGE_ARCHIVE_REPO": f"{hf.username()}/gpu-bridge-archive",
             },
             secrets={"JUPYTER_TOKEN": hf.jupyter_token(nonce), "HF_TOKEN": token},
             flavor=flavor,
             timeout=timeout,
             expose=[RUNTIME_PORT],
-            name="thesis-mcp-runtime",
-            labels={"thesis-mcp": "runtime"},
+            name="gpu-bridge-runtime",
+            labels={"gpu-bridge": "runtime"},
         )
         rs.store.set_section("hf_runtime", {
             "job_id": job.id, "nonce": nonce, "flavor": flavor, "url": job.url, "image": image,

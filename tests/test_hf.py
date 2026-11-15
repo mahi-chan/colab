@@ -19,10 +19,10 @@ from huggingface_hub import SpaceRuntime
 from huggingface_hub._jobs_api import JobHardwareInfo, JobInfo
 from huggingface_hub.errors import HfHubHTTPError
 
-from thesis_mcp import config
-from thesis_mcp import runtime_state as rs
-from thesis_mcp.connectors import hf
-from thesis_mcp.tools import hf_jobs
+from gpu_bridge import config
+from gpu_bridge import runtime_state as rs
+from gpu_bridge.connectors import hf
+from gpu_bridge.tools import hf_jobs
 
 OWNER = {"id": "u1", "name": "alice", "type": "user"}
 
@@ -48,20 +48,20 @@ print("seed", SEED)
 def test_job_launch_and_follow(hub, tmp_path):
     hub.run_uv_job.return_value = job()
     text, _ = call("hf_job_launch", script=SCRIPT, run_name="llm1", flavor="t4-small",
-                   timeout="3h", requirements="torch transformers", env_json='{"THESIS_SEED": "5"}')
+                   timeout="3h", requirements="torch transformers", env_json='{"GPU_BRIDGE_SEED": "5"}')
     assert "Launched 'llm1' as Hugging Face job job123 on t4-small" in text, text
 
     kwargs = hub.run_uv_job.call_args.kwargs
     assert kwargs["flavor"] == "t4-small" and kwargs["timeout"] == "3h"
     assert kwargs["dependencies"] == ["huggingface_hub", "torch", "transformers"]
     assert kwargs["secrets"] == {"HF_TOKEN": "hf_test_token"}
-    assert kwargs["env"] == {"THESIS_HUB_REPO": "alice/llm1", "THESIS_SEED": "5"}
+    assert kwargs["env"] == {"GPU_BRIDGE_HUB_REPO": "alice/llm1", "GPU_BRIDGE_SEED": "5"}
     script_path = hub.run_uv_job.call_args.args[0]
 
     # Run the exact script the job would run, as the remote machine would.
     stub_log = tmp_path / "hub.jsonl"
     env = {**remote_env(stub_log), **kwargs["env"], "HF_TOKEN": "x",
-           "THESIS_RUN_DIR": str(tmp_path / "run")}
+           "GPU_BRIDGE_RUN_DIR": str(tmp_path / "run")}
     out = subprocess.run([sys.executable, script_path], env=env, cwd=tmp_path,
                          capture_output=True, text=True, check=True).stdout
     assert "seed 5" in out and "saved to alice/llm1/model.pt" in out
@@ -105,7 +105,7 @@ def test_seed_sweep_as_parallel_jobs(hub):
     hub.run_uv_job.side_effect = [job("j1"), job("j2")]
     text, _ = call("rl_seed_sweep", script="pass", run_name="ppo", seeds="1,2", hf_flavor="t4-small")
     assert text.count(": ok") == 2, text
-    seeds = [c.kwargs["env"]["THESIS_SEED"] for c in hub.run_uv_job.call_args_list]
+    seeds = [c.kwargs["env"]["GPU_BRIDGE_SEED"] for c in hub.run_uv_job.call_args_list]
     assert seeds == ["1", "2"]
     assert rs.store.get_run("ppo_s2")["job_id"] == "j2"
 
@@ -140,7 +140,7 @@ def started_runtime(hub, tmp_path):
     kwargs = hub.run_job.call_args.kwargs
     assert kwargs["expose"] == [hf_jobs.RUNTIME_PORT] and kwargs["timeout"] == "4h"
     assert kwargs["image"] == config.HF_RUNTIME_IMAGE
-    assert kwargs["env"]["THESIS_IDLE_MINUTES"] == "20"
+    assert kwargs["env"]["GPU_BRIDGE_IDLE_MINUTES"] == "20"
     assert set(kwargs["secrets"]) == {"JUPYTER_TOKEN", "HF_TOKEN"}
 
     procs = []
@@ -149,8 +149,8 @@ def started_runtime(hub, tmp_path):
         port = free_port()
         stub_log = tmp_path / f"hub-{port}.jsonl"
         env = {**remote_env(stub_log), **kwargs["env"], **kwargs["secrets"],
-               "THESIS_PORT": str(port), "THESIS_ROOT": str(tmp_path / f"root-{port}"),
-               "THESIS_WATCH_SECONDS": "1", "JOB_ID": "rt1", **overrides}
+               "GPU_BRIDGE_PORT": str(port), "GPU_BRIDGE_ROOT": str(tmp_path / f"root-{port}"),
+               "GPU_BRIDGE_WATCH_SECONDS": "1", "JOB_ID": "rt1", **overrides}
         proc = subprocess.Popen([sys.executable, *kwargs["command"][1:]], env=env,
                                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
         procs.append(proc)
@@ -174,7 +174,7 @@ def test_runtime_start_connect_use_stop(hub, started_runtime):
     wait_for_jupyter(url, kwargs["secrets"]["JUPYTER_TOKEN"], proc)
     hub.inspect_job.return_value = job("rt1", status={"stage": "RUNNING", "exposeUrls": [url]})
     text, _ = call("hf_runtime_connect")
-    assert "kernel" in text and env["THESIS_ROOT"] in text, text
+    assert "kernel" in text and env["GPU_BRIDGE_ROOT"] in text, text
     assert rs.jupyter.bearer == "hf_test_token"
     assert call("run_code", code="print(2 ** 10)")[0].strip() == "1024"
 
@@ -200,9 +200,9 @@ def test_runtime_reports_a_job_that_ended(hub, started_runtime):
 
 def test_runtime_shuts_itself_down_when_idle(started_runtime):
     boot, kwargs = started_runtime
-    proc, url, env, stub_log = boot(THESIS_IDLE_MINUTES="0.05", HF_TOKEN="remote-token")
+    proc, url, env, stub_log = boot(GPU_BRIDGE_IDLE_MINUTES="0.05", HF_TOKEN="remote-token")
     wait_for_jupyter(url, kwargs["secrets"]["JUPYTER_TOKEN"], proc)
-    runs = os.path.join(env["THESIS_ROOT"], "thesis_runs", "exp")
+    runs = os.path.join(env["GPU_BRIDGE_ROOT"], "gpu_bridge_runs", "exp")
     os.makedirs(runs)
     open(os.path.join(runs, "metrics.jsonl"), "w").write("{}\n")
 
@@ -210,14 +210,14 @@ def test_runtime_shuts_itself_down_when_idle(started_runtime):
     assert "shutting down to free the machine" in proc.stdout.read()
     archived = [json.loads(line) for line in stub_log.read_text().splitlines()]
     upload = next(c for c in archived if c["call"] == "upload_folder")
-    assert upload["repo_id"] == "alice/thesis-mcp-archive" and "exp/metrics.jsonl" in upload["files"]
+    assert upload["repo_id"] == "alice/gpu-bridge-archive" and "exp/metrics.jsonl" in upload["files"]
 
 
 def test_runtime_stays_up_while_a_run_is_alive(started_runtime):
     boot, kwargs = started_runtime
-    proc, url, env, _ = boot(THESIS_IDLE_MINUTES="0.05")
+    proc, url, env, _ = boot(GPU_BRIDGE_IDLE_MINUTES="0.05")
     wait_for_jupyter(url, kwargs["secrets"]["JUPYTER_TOKEN"], proc)
-    run_dir = os.path.join(env["THESIS_ROOT"], "thesis_runs", "training")
+    run_dir = os.path.join(env["GPU_BRIDGE_ROOT"], "gpu_bridge_runs", "training")
     os.makedirs(run_dir)
     open(os.path.join(run_dir, "pid"), "w").write(str(os.getpid()))  # a live process
     time.sleep(12)

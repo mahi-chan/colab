@@ -12,9 +12,9 @@ from conftest import call, wait_until_stopped
 
 import pytest
 
-from thesis_mcp import config
-from thesis_mcp import runtime_state as rs
-from thesis_mcp.connectors import hf
+from gpu_bridge import config
+from gpu_bridge import runtime_state as rs
+from gpu_bridge.connectors import hf
 
 TRAIN = '''
 import os, time
@@ -58,7 +58,7 @@ def test_run_code_reports_errors_and_recovers_from_timeout(runtime):
 
 
 def test_training_run_lifecycle(runtime):
-    text, _ = call("launch_training", script=TRAIN, run_name="demo", env_json='{"THESIS_SEED": "7"}')
+    text, _ = call("launch_training", script=TRAIN, run_name="demo", env_json='{"GPU_BRIDGE_SEED": "7"}')
     assert "Launched" in text, text
     status = wait_until_stopped("demo")
     assert "metric rows: 4" in status
@@ -232,7 +232,7 @@ def test_cv_load_dataset_lends_the_local_kaggle_login(runtime, kaggle):
 
 
 def test_kaggle_tools_run_locally_when_logged_in(runtime, kaggle, monkeypatch, tmp_path):
-    from thesis_mcp.connectors import kaggle_api
+    from gpu_bridge.connectors import kaggle_api
 
     calls = []
     monkeypatch.setattr(kaggle_api, "cli", lambda args, timeout=300, cwd=None: calls.append(args) or "ok")

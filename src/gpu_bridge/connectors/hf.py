@@ -20,7 +20,7 @@ class HfNotLoggedIn(RuntimeError):
 def api() -> HfApi:
     global _api
     if _api is None:
-        _api = HfApi(library_name="thesis-mcp")
+        _api = HfApi(library_name="gpu-bridge")
     return _api
 
 
@@ -31,7 +31,7 @@ def token() -> str:
         raise HfNotLoggedIn(
             "No Hugging Face token found. The user creates one with write access at "
             "https://huggingface.co/settings/tokens and logs in once, in a terminal, with: "
-            "thesis-mcp login huggingface"
+            "gpu-bridge login huggingface"
         )
     return tok
 
@@ -46,4 +46,4 @@ def jupyter_token(nonce: str) -> str:
     Deriving it (instead of saving it) means no secret is written to disk, and a
     new session can rebuild it from the nonce remembered in the state file.
     """
-    return hmac.new(token().encode(), f"thesis-mcp:{nonce}".encode(), hashlib.sha256).hexdigest()
+    return hmac.new(token().encode(), f"gpu-bridge:{nonce}".encode(), hashlib.sha256).hexdigest()

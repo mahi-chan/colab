@@ -5,8 +5,8 @@ Verifies the tools register cleanly and the local state store behaves.
 
 import asyncio
 
-from thesis_mcp import server
-from thesis_mcp.connectors.store import RunStore
+from gpu_bridge import server
+from gpu_bridge.connectors.store import RunStore
 
 
 def test_all_tools_registered():
@@ -49,14 +49,14 @@ def test_every_tool_has_a_description():
 
 def test_store_roundtrip(tmp_path):
     s = RunStore(str(tmp_path))
-    s.new_run("r1", "/content/thesis_runs/r1")
+    s.new_run("r1", "/content/gpu_bridge_runs/r1")
     s.update_run("r1", status="running")
     assert s.get_run("r1")["status"] == "running"
     assert any(r["name"] == "r1" for r in s.list_runs())
 
     # persistence across re-open
     s2 = RunStore(str(tmp_path))
-    assert s2.get_run("r1")["dir"] == "/content/thesis_runs/r1"
+    assert s2.get_run("r1")["dir"] == "/content/gpu_bridge_runs/r1"
 
 
 def test_store_kernel_memory(tmp_path):
@@ -72,14 +72,14 @@ def test_unexpanded_mcp_json_placeholders_read_as_unset():
     import sys
 
     env = {**os.environ, "JUPYTER_URL": "${JUPYTER_URL}", "HF_TOKEN": "${HF_TOKEN:-}"}
-    code = ("from thesis_mcp import config; import os; "
+    code = ("from gpu_bridge import config; import os; "
             "print(repr(config.JUPYTER_URL), os.environ.get('HF_TOKEN'))")
     out = subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, text=True, check=True)
     assert out.stdout.split() == ["''", "None"]
 
 
 def test_run_names_are_validated():
-    from thesis_mcp.tools.core import check_run_name
+    from gpu_bridge.tools.core import check_run_name
 
     for good in ("ppo_cartpole", "llm-v2.1", "a"):
         assert check_run_name(good) == ""
@@ -88,18 +88,18 @@ def test_run_names_are_validated():
 
 
 def test_server_starts_over_stdio_like_claude_code_launches_it(tmp_path):
-    """Start the installed `thesis-mcp` command and do a real MCP handshake with it."""
+    """Start the installed `gpu-bridge` command and do a real MCP handshake with it."""
     import os
     import shutil
 
     from mcp import ClientSession, StdioServerParameters
     from mcp.client.stdio import stdio_client
 
-    command = shutil.which("thesis-mcp")
-    assert command, "the thesis-mcp entry point is not installed"
+    command = shutil.which("gpu-bridge")
+    assert command, "the gpu-bridge entry point is not installed"
 
     async def handshake():
-        env = {**os.environ, "THESIS_STATE_DIR": str(tmp_path)}
+        env = {**os.environ, "GPU_BRIDGE_STATE_DIR": str(tmp_path)}
         params = StdioServerParameters(command=command, args=[], env=env)
         async with stdio_client(params) as (read, write):
             async with ClientSession(read, write) as session:
@@ -109,7 +109,7 @@ def test_server_starts_over_stdio_like_claude_code_launches_it(tmp_path):
                 return init, tools.tools, result
 
     init, tools, result = asyncio.run(handshake())
-    assert init.serverInfo.name == "thesis"
+    assert init.serverInfo.name == "gpu-bridge"
     assert "Hugging Face" in (init.instructions or "")
     assert len(tools) == 54
     assert result.content[0].text == "No runs yet."

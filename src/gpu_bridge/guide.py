@@ -1,7 +1,7 @@
 """Step-by-step instructions for connecting each place the work can run.
 
 Shared by the ``setup_guide`` tool (so any AI client can walk the user through it) and
-the ``thesis-mcp doctor`` command — one source for the instructions.
+the ``gpu-bridge doctor`` command — one source for the instructions.
 """
 
 from pathlib import Path

@@ -38,16 +38,16 @@ import sys
 import time
 import urllib.request
 
-ANNOUNCE_MARKER = "THESIS_MCP_ANNOUNCE "
+ANNOUNCE_MARKER = "GPU_BRIDGE_ANNOUNCE "
 CODE_PATTERN = re.compile(r"^[0-9a-f]{32}$")
 DEFAULT_RENDEZVOUS = "https://ntfy.sh"
 CLOUDFLARED_URL = "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-{arch}"
 
 
-# -- pairing: shared with the local side (thesis_mcp.connectors.pairing) --------
+# -- pairing: shared with the local side (gpu_bridge.connectors.pairing) --------
 def topic_for(code):
     """Rendezvous topic for a pairing code. One-way: the topic does not reveal the code."""
-    return "tmcp-" + hashlib.sha256(("topic:" + code).encode()).hexdigest()[:40]
+    return "gpub-" + hashlib.sha256(("topic:" + code).encode()).hexdigest()[:40]
 
 
 def sign(code, url):
@@ -60,7 +60,7 @@ def announcement(code, url):
 
 # -- helpers --------------------------------------------------------------------
 def log(*parts):
-    print("[thesis-mcp]", *parts, flush=True)
+    print("[gpu-bridge]", *parts, flush=True)
 
 
 def default_root():
@@ -97,7 +97,7 @@ def ensure_packages():
 class Runtime:
     def __init__(self):
         env = os.environ
-        self.code = env.get("THESIS_PAIR_CODE", "")
+        self.code = env.get("GPU_BRIDGE_PAIR_CODE", "")
         token = env.get("JUPYTER_TOKEN", "")
         if not self.code and not token and len(sys.argv) > 1 and CODE_PATTERN.match(sys.argv[1]):
             self.code = sys.argv[1]
@@ -106,18 +106,18 @@ class Runtime:
         self.manual = not self.code and not token
         self.token = self.code or token or secrets.token_hex(16)
         # A tunnel is needed unless the platform exposes the port itself (token given, no code).
-        self.tunnel = env.get("THESIS_TUNNEL", "0" if (token and not self.code) else "1") == "1"
-        self.port = int(env.get("THESIS_PORT") or (free_port() if self.tunnel else 8888))
-        self.root = env.get("THESIS_ROOT") or default_root()
-        self.runs_dir = os.path.join(self.root, "thesis_runs")
-        self.stop_file = os.path.join(self.root, ".thesis_stop")
+        self.tunnel = env.get("GPU_BRIDGE_TUNNEL", "0" if (token and not self.code) else "1") == "1"
+        self.port = int(env.get("GPU_BRIDGE_PORT") or (free_port() if self.tunnel else 8888))
+        self.root = env.get("GPU_BRIDGE_ROOT") or default_root()
+        self.runs_dir = os.path.join(self.root, "gpu_bridge_runs")
+        self.stop_file = os.path.join(self.root, ".gpu_bridge_stop")
         # Colab reclaims idle machines itself and stopping early frees nothing there.
         default_idle = "0" if self.root == "/content" else "30"
-        self.idle_seconds = float(env.get("THESIS_IDLE_MINUTES", default_idle)) * 60
-        self.check_every = float(env.get("THESIS_WATCH_SECONDS", "30"))
-        self.archive_repo = env.get("THESIS_ARCHIVE_REPO", "")
-        self.rendezvous = env.get("THESIS_RENDEZVOUS_URL", DEFAULT_RENDEZVOUS).rstrip("/")
-        self.public_url = env.get("THESIS_PUBLIC_URL", "")
+        self.idle_seconds = float(env.get("GPU_BRIDGE_IDLE_MINUTES", default_idle)) * 60
+        self.check_every = float(env.get("GPU_BRIDGE_WATCH_SECONDS", "30"))
+        self.archive_repo = env.get("GPU_BRIDGE_ARCHIVE_REPO", "")
+        self.rendezvous = env.get("GPU_BRIDGE_RENDEZVOUS_URL", DEFAULT_RENDEZVOUS).rstrip("/")
+        self.public_url = env.get("GPU_BRIDGE_PUBLIC_URL", "")
         self.server = None
         self.tunnel_proc = None
 
