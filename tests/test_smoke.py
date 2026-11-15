@@ -33,6 +33,8 @@ def test_all_tools_registered():
         # hugging face: hub and spaces
         "hf_whoami", "hf_search", "hf_upload", "hf_download", "hf_push_run",
         "hf_space_status", "hf_space_hardware", "hf_space_pause", "hf_space_restart",
+        # setup help
+        "setup_guide", "example_script",
     }
     assert names == expected, f"missing {sorted(expected - names)}, unexpected {sorted(names - expected)}"
 
@@ -107,5 +109,5 @@ def test_server_starts_over_stdio_like_claude_code_launches_it(tmp_path):
     init, tools, result = asyncio.run(handshake())
     assert init.serverInfo.name == "thesis"
     assert "Hugging Face" in (init.instructions or "")
-    assert len(tools) == 49
+    assert len(tools) == 51
     assert result.content[0].text == "No runs yet."

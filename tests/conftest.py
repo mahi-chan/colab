@@ -60,9 +60,9 @@ def remote_env(stub_log: Path) -> dict:
     return env
 
 
-def call(name: str, **kwargs):
+def call(tool: str, /, **kwargs):
     """Call a tool through the real MCP path. Returns (text, [content block type names])."""
-    result = asyncio.run(server.mcp.call_tool(name, kwargs))
+    result = asyncio.run(server.mcp.call_tool(tool, kwargs))
     blocks = result[0] if isinstance(result, tuple) else result
     text = "\n".join(getattr(b, "text", "") for b in blocks)
     return text, [type(b).__name__ for b in blocks]
