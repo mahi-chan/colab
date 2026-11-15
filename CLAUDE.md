@@ -60,6 +60,9 @@ Hugging Face machines bill per minute until they end.
   `kaggle_submit`, `kaggle_submissions`, `kaggle_leaderboard`.
 - **Hugging Face compute:** `hf_hardware`, `hf_job_launch`, `hf_job_list`,
   `hf_job_cancel`, `hf_runtime_start`, `hf_runtime_connect`, `hf_runtime_stop`.
+- **Setup help:** `setup_guide(platform)` returns the steps (and notebook cell) to
+  connect Colab, Kaggle, Hugging Face or a Space; `example_script(name)` returns the
+  example training scripts. Use them when the user asks how to connect something.
 - **Hugging Face Hub / Spaces:** `hf_whoami`, `hf_search`, `hf_upload`, `hf_download`,
   `hf_push_run`, `hf_space_status`, `hf_space_hardware`, `hf_space_pause`,
   `hf_space_restart`.
@@ -89,6 +92,9 @@ Tools are grouped in `src/thesis_mcp/tools/`: `core`, `notebook`, `rl`, `cv`,
 `register(mcp)`, wired in `server.py`. Connections live in `connectors/` (`jupyter.py`,
 `hf.py`, `store.py`); the shared singletons are in `runtime_state.py`.
 `remote/hf_entrypoint.py` is the program that runs on a rented Hugging Face machine.
+The `thesis-mcp` command is `cli.py`: no arguments serves MCP over stdio; `install` /
+`uninstall` / `clients` (`installer.py`) register it with AI clients; `doctor` reports
+what is set up. `install.sh` and `install.ps1` wrap all of that for a new computer.
 
 Before committing: `uv run pytest` (real Jupyter server + spec-checked Hugging Face mock)
 and `uvx ruff check src tests`. After changing tool code the user must restart the MCP

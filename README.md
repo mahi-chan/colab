@@ -1,11 +1,11 @@
 # thesis-mcp
 
-An MCP server that lets **Claude Code run your ML work on remote GPUs**: Google Colab,
+An MCP server that lets **your AI assistant run your ML work on remote GPUs**: Google Colab,
 Kaggle, and rented Hugging Face machines. Train RL agents and vision models, fine-tune
 LLMs, run experiments across seeds, and enter Kaggle competitions — from one chat.
 
 ```
-Claude Code ──stdio──► thesis-mcp (this repo, on YOUR computer)
+AI client ───────────► thesis-mcp (this repo, on YOUR computer)
                            │
         ┌──────────────────┼─────────────────────────────┐
         ▼                  ▼                             ▼
@@ -27,27 +27,56 @@ What it adds over plain notebook access:
 
 ---
 
-## Setup (once)
+## Install
 
-**You need:** [uv](https://docs.astral.sh/uv/) and Claude Code on your computer.
+**macOS / Linux**
 
 ```bash
-git clone https://github.com/mahi-chan/colab.git && cd colab
-uv sync                       # installs the exact versions pinned in uv.lock
-uv run pytest                 # optional self-check, about a minute
-cp .mcp.json.example .mcp.json   # registers the server for Claude Code in this folder
+git clone -b claude/mcp-colab-kaggle-3nheg4 https://github.com/mahi-chan/colab.git thesis-mcp
+cd thesis-mcp
+./install.sh
 ```
 
-Then start `claude` in this folder and approve the `thesis` server when asked.
-(Alternative to the `cp`: `claude mcp add thesis -- uv run thesis-mcp`.)
+**Windows (PowerShell)**
 
-### Accounts, depending on where you want to run
+```powershell
+git clone -b claude/mcp-colab-kaggle-3nheg4 https://github.com/mahi-chan/colab.git thesis-mcp
+cd thesis-mcp
+powershell -ExecutionPolicy Bypass -File .\install.ps1
+```
 
-| Where | What to set up |
-|-------|----------------|
-| **Hugging Face** | A token with **write** access from <https://huggingface.co/settings/tokens>, then `uv run hf auth login` once (or `export HF_TOKEN=hf_...`). Renting machines needs credits or a payment method: <https://huggingface.co/settings/billing>. |
-| **Colab** | A Google account. Nothing to install. |
-| **Kaggle** | A Kaggle account. For competitions from Colab or Hugging Face, put your Kaggle API credentials on that machine (see the comment at the top of `runtime/colab_bootstrap.py`). |
+The installer needs only `git`. It installs [uv](https://docs.astral.sh/uv/) if missing,
+creates the Python environment with the exact pinned versions, and registers the server
+with every supported AI client it finds: **Claude Code, Claude Desktop, Cursor, VS Code
+(GitHub Copilot), Windsurf, Cline, Gemini CLI and Codex CLI**. It is safe to run again
+after a `git pull`. It never writes a token into any config file.
+
+```bash
+./install.sh --client cursor          # only one client (repeatable)
+./install.sh --print                  # just print the entry for any other MCP client
+uv run thesis-mcp clients             # what was found and where it is installed
+uv run thesis-mcp uninstall           # remove it again
+```
+
+Restart the AI client afterwards so it loads the new server.
+
+## Connect a machine
+
+Installing connects the AI client. The other end, the machine that does the work, needs
+one of these. Full steps are in **[docs/CONNECTING.md](docs/CONNECTING.md)**, and the
+assistant can walk you through them (*"how do I connect Colab?"*).
+
+| Where | What you do |
+|-------|-------------|
+| **Hugging Face** (rented) | Once: create a write token, run `uv run hf auth login`, add credits or a payment method. |
+| **Colab** (free) | Each session: paste the bootstrap cell into a GPU notebook, give the assistant the URL and token it prints. |
+| **Kaggle** (free) | Same as Colab, with the Kaggle cell, GPU and Internet switched on. |
+
+Check what is ready at any time:
+
+```bash
+uv run thesis-mcp doctor --online
+```
 
 ---
 
@@ -55,7 +84,7 @@ Then start `claude` in this folder and approve the `thesis` server when asked.
 
 ### A. Hugging Face (rented GPU) — nothing to paste anywhere
 
-Just ask Claude Code. Typical requests:
+Just ask the assistant. Typical requests:
 
 - *"Check my Hugging Face login and show me the GPU prices."* → `hf_whoami`, `hf_hardware`
 - *"Fine-tune the LoRA example on a T4 for at most an hour."* → `hf_job_launch`, one
@@ -78,18 +107,14 @@ Two ways to rent:
    type → GPU** (Kaggle: Accelerator = GPU and Internet = On).
 2. Paste `runtime/colab_bootstrap.py` (or `runtime/kaggle_bootstrap.py`) into a cell and
    run it. Leave it running.
-3. Export the two lines it prints, then start Claude Code from this folder:
-   ```bash
-   export JUPYTER_URL="https://xxxx.trycloudflare.com"
-   export JUPYTER_TOKEN="....."
-   claude
-   ```
-4. Ask Claude Code to *"connect the runtime"*.
+3. Give the two values it prints (`JUPYTER_URL`, `JUPYTER_TOKEN`) to the assistant:
+   *"connect to the runtime at `<URL>` with token `<TOKEN>`"*.
 
-### Every session after `/clear`
+### Every new session
 
-The repo carries the memory: [`CLAUDE.md`](./CLAUDE.md) re-teaches the workflow, and the
-server re-attaches to the machine and runs that are still going. Just say *"reconnect"*.
+The server remembers the machine and the runs that are still going, and it tells each AI
+client how to use it. Just say *"reconnect"*. (In Claude Code, started in this folder,
+[`CLAUDE.md`](./CLAUDE.md) adds the full workflow notes.)
 
 ---
 
@@ -105,6 +130,7 @@ server re-attaches to the machine and runs that are still going. Just say *"reco
 | Kaggle competitions | `kaggle_search_datasets`, `kaggle_competition_files`, `kaggle_submit`, `kaggle_submissions`, `kaggle_leaderboard` |
 | Hugging Face compute | `hf_hardware`, `hf_job_launch`, `hf_job_list`, `hf_job_cancel`, `hf_runtime_start`, `hf_runtime_connect`, `hf_runtime_stop` |
 | Hugging Face Hub and Spaces | `hf_whoami`, `hf_search`, `hf_upload`, `hf_download`, `hf_push_run`, `hf_space_status`, `hf_space_hardware`, `hf_space_pause`, `hf_space_restart` |
+| Setup help | `setup_guide`, `example_script` |
 
 ### Writing a training script
 
@@ -169,11 +195,16 @@ uvx ruff check src tests
 
 ```
 src/thesis_mcp/
+  cli.py               the `thesis-mcp` command: serve, install, clients, doctor
+  installer.py         registers the server with AI clients
+  guide.py, doctor.py  connection steps and readiness report
   server.py            registers every tool group
   runtime_state.py     shared connection + run registry
   connectors/          jupyter.py, hf.py, store.py
-  tools/               core, notebook, rl, cv, kaggle_tools, hf_jobs, hf_hub
+  tools/               core, notebook, rl, cv, kaggle_tools, hf_jobs, hf_hub, guide_tools
   remote/              hf_entrypoint.py — runs on a rented Hugging Face machine
+install.sh, install.ps1   one-command installers
+docs/CONNECTING.md     how to connect each platform
 runtime/               Colab and Kaggle bootstrap cells
 examples/              training scripts
 tests/                 test suite and remote-side stubs
