@@ -1,6 +1,6 @@
 [project]
 name = "thesis-mcp"
-version = "0.2.0"
+version = "0.3.0"
 description = "MCP server that runs ML work (RL, CV, LLM fine-tuning, competitions) on Google Colab, Kaggle and rented Hugging Face GPUs."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -14,7 +14,7 @@ dependencies = [
 ]
 
 [project.scripts]
-thesis-mcp = "thesis_mcp.server:main"
+thesis-mcp = "thesis_mcp.cli:main"
 
 [build-system]
 requires = ["hatchling"]
@@ -22,6 +22,12 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/thesis_mcp"]
+
+# The notebook cells and example scripts are served by the setup_guide / example_script
+# tools, so they must travel with the package.
+[tool.hatch.build.targets.wheel.force-include]
+"runtime" = "thesis_mcp/_assets/runtime"
+"examples" = "thesis_mcp/_assets/examples"
 
 [dependency-groups]
 dev = [

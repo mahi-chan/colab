@@ -1,3 +1,3 @@
-"""thesis-mcp: drive a Colab/Kaggle runtime from Claude Code for ML thesis work."""
+"""thesis-mcp: run ML work on Colab, Kaggle and Hugging Face GPUs from an AI assistant."""
 
-__version__ = "0.1.0"
+__version__ = "0.3.0"
