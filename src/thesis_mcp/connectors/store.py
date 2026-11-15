@@ -1,8 +1,9 @@
 """Local, on-disk state: the remembered kernel connection and the run registry.
 
 This is what makes the server survive ``/clear`` and Claude Code restarts: the
-Colab kernel keeps running in the cloud, and this file remembers its id + the
-runs we launched so a fresh session can re-attach instead of starting over.
+remote kernel (or Hugging Face job) keeps running in the cloud, and this file
+remembers its id + the runs we launched so a fresh session can re-attach instead
+of starting over. It never holds a secret.
 """
 
 import json
@@ -37,7 +38,13 @@ class RunStore:
 
     # -- kernel / connection ------------------------------------------------
     def save_kernel(self, **kw: Any) -> None:
+        """Merge fields into the remembered connection."""
         self.data["kernel"].update(kw)
+        self._save()
+
+    def set_kernel(self, **kw: Any) -> None:
+        """Replace the remembered connection (drops fields from a previous runtime)."""
+        self.data["kernel"] = dict(kw)
         self._save()
 
     def get_kernel(self) -> Dict[str, Any]:
@@ -45,6 +52,14 @@ class RunStore:
 
     def clear_kernel(self) -> None:
         self.data["kernel"] = {}
+        self._save()
+
+    # -- other named sections (e.g. the Hugging Face runtime job) ------------
+    def get_section(self, name: str) -> Dict[str, Any]:
+        return self.data.get(name) or {}
+
+    def set_section(self, name: str, value: Dict[str, Any]) -> None:
+        self.data[name] = dict(value)
         self._save()
 
     # -- runs ---------------------------------------------------------------
