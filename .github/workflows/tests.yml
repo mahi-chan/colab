@@ -13,3 +13,36 @@ jobs:
       - run: uv sync --locked
       - run: uvx ruff check src tests
       - run: uv run pytest -q
+
+  # The installer has to work on a fresh computer of each kind, so run the real
+  # install scripts there and check the result.
+  installer:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    env:
+      CLIENTS: --client cursor --client vscode --client codex --client claude-desktop --client gemini
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: Run install.sh
+        if: runner.os != 'Windows'
+        run: ./install.sh $CLIENTS
+      - name: Run install.ps1
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./install.ps1 --client cursor --client vscode --client codex --client claude-desktop --client gemini
+      - name: Check every requested client is registered
+        shell: bash
+        run: |
+          uv run --no-sync thesis-mcp clients | tee clients.txt
+          for c in cursor vscode codex claude-desktop gemini; do
+            grep -Eq "^$c +yes +yes" clients.txt || { echo "$c is not installed"; exit 1; }
+          done
+          uv run --no-sync thesis-mcp doctor
+      - name: Installer and server tests
+        run: |
+          uv sync --locked
+          uv run pytest -q tests/test_installer.py tests/test_smoke.py
