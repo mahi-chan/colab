@@ -207,7 +207,7 @@ def test_runtime_shuts_itself_down_when_idle(started_runtime):
     open(os.path.join(runs, "metrics.jsonl"), "w").write("{}\n")
 
     assert proc.wait(timeout=40) == 0, "an idle runtime must exit so the job stops billing"
-    assert "shutting down to stop billing" in proc.stdout.read()
+    assert "shutting down to free the machine" in proc.stdout.read()
     archived = [json.loads(line) for line in stub_log.read_text().splitlines()]
     upload = next(c for c in archived if c["call"] == "upload_folder")
     assert upload["repo_id"] == "alice/thesis-mcp-archive" and "exp/metrics.jsonl" in upload["files"]

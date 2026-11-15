@@ -180,7 +180,7 @@ def test_http_mode_for_clients_that_connect_by_url(tmp_path):
         raise AssertionError("HTTP server did not come up")
 
     try:
-        assert asyncio.run(handshake()) == 51
+        assert asyncio.run(handshake()) == 54
     finally:
         proc.terminate()
         proc.wait(timeout=20)
@@ -188,12 +188,12 @@ def test_http_mode_for_clients_that_connect_by_url(tmp_path):
 
 def test_setup_guide_and_examples_are_available_as_tools():
     overview, _ = call("setup_guide")
-    assert "Hugging Face: token found" in overview and "Colab/Kaggle: nothing connected" in overview
+    assert "Hugging Face: token found" in overview and "Kaggle: not logged in" in overview
 
-    colab, _ = call("setup_guide", platform="colab")
-    assert "connect_runtime(url=" in colab and "trycloudflare" in colab, "includes the cell to paste"
-    assert "/kaggle/working" in call("setup_guide", platform="Kaggle")[0]
-    assert "auth login" in call("setup_guide", platform="huggingface")[0]
+    assert "colab_runtime_start" in call("setup_guide", platform="colab")[0]
+    kaggle_steps, _ = call("setup_guide", platform="Kaggle")
+    assert "login kaggle" in kaggle_steps and "kaggle_runtime_start" in kaggle_steps
+    assert "login huggingface" in call("setup_guide", platform="huggingface")[0]
     assert "hf_auth=True" in call("setup_guide", platform="space")[0]
     assert "Unknown platform" in call("setup_guide", platform="aws")[0]
 
@@ -203,7 +203,7 @@ def test_setup_guide_and_examples_are_available_as_tools():
 
 
 @pytest.mark.skipif(shutil.which("uv") is None, reason="uv is not installed")
-def test_wheel_carries_the_notebook_cells_and_examples(tmp_path):
+def test_wheel_carries_the_remote_program_and_examples(tmp_path):
     import zipfile
     from pathlib import Path
 
@@ -211,7 +211,18 @@ def test_wheel_carries_the_notebook_cells_and_examples(tmp_path):
     subprocess.run(["uv", "build", "--wheel", "--out-dir", str(tmp_path), str(repo)],
                    check=True, capture_output=True)
     names = zipfile.ZipFile(next(tmp_path.glob("*.whl"))).namelist()
-    for needed in ("thesis_mcp/_assets/runtime/colab_bootstrap.py",
-                   "thesis_mcp/_assets/examples/llm_lora_finetune.py",
-                   "thesis_mcp/remote/hf_entrypoint.py", "thesis_mcp/__main__.py"):
+    for needed in ("thesis_mcp/_assets/examples/llm_lora_finetune.py",
+                   "thesis_mcp/remote/entrypoint.py", "thesis_mcp/__main__.py"):
         assert needed in names, needed
+
+
+def test_login_command_hands_over_to_the_platform_tools(monkeypatch):
+    import subprocess as sp
+
+    ran = []
+    monkeypatch.setattr(sp, "call", lambda command: ran.append(command) or 0)
+    assert cli.main(["login", "kaggle"]) == 0
+    assert ran[-1] == [sys.executable, "-m", "kaggle", "auth", "login"]
+    assert cli.main(["login", "huggingface"]) == 0
+    assert ran[-1][1:] == ["auth", "login"] and os.path.basename(ran[-1][0]).startswith("hf")
+    assert os.path.exists(ran[-1][0]), "the Hugging Face login program ships with the environment"

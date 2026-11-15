@@ -6,6 +6,7 @@ import zipfile
 
 args = sys.argv[1:]
 print("KAGGLE", " ".join(args))
+print("LOGIN", os.environ.get("KAGGLE_USERNAME", "none"))
 if "download" in args:
     dest = args[args.index("-p") + 1]
     with zipfile.ZipFile(os.path.join(dest, "data.zip"), "w") as z:

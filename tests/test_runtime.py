@@ -10,8 +10,11 @@ import time
 
 from conftest import call, wait_until_stopped
 
+import pytest
+
 from thesis_mcp import config
 from thesis_mcp import runtime_state as rs
+from thesis_mcp.connectors import hf
 
 TRAIN = '''
 import os, time
@@ -158,16 +161,19 @@ def test_hf_push_run_from_runtime(runtime):
     call("launch_training", script=TRAIN, run_name="pushme")
     wait_until_stopped("pushme")
 
-    # without a token on the remote machine the tool explains what to do
-    assert "no Hugging Face token" in call("hf_push_run", run_name="pushme")[0]
+    # with no login anywhere the tool explains what to do
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(hf, "get_token", lambda: None)
+        assert "No Hugging Face login" in call("hf_push_run", run_name="pushme", repo_id="alice/pushme")[0]
 
-    call("run_code", code="import os; os.environ['HF_TOKEN'] = 'remote-token'")
+    # this computer's login is used for the upload; nothing is set up on the runtime
     text, _ = call("hf_push_run", run_name="pushme")
     assert "Pushed run 'pushme' to https://huggingface.co/alice/pushme" in text, text
     calls = [json.loads(line) for line in runtime["stub_log"].read_text().splitlines()]
     upload = next(c for c in calls if c["call"] == "upload_folder" and c["repo_id"] == "alice/pushme")
     assert "checkpoints/model.pt" in upload["files"] and "metrics.jsonl" in upload["files"]
-    call("run_code", code="import os; os.environ.pop('HF_TOKEN', None)")
+    history, _ = call("run_code", code="print(('hf_test' + '_token') in repr(In))")
+    assert history.strip() == "False", "the login must not be left in the kernel's history"
 
 
 def test_hf_authenticated_connection(runtime):
@@ -197,7 +203,7 @@ def test_wrong_token_is_reported_not_connected(jupyter_server):
 
 def test_tools_explain_missing_runtime():
     text, _ = call("connect_runtime")
-    assert "No runtime configured" in text
+    assert "No runtime yet" in text and "kaggle_runtime_start" in text
     assert "Not connected" in call("runtime_status")[0]
 
 
@@ -213,6 +219,32 @@ def test_kaggle_tools_build_the_right_commands(runtime):
 def test_cv_load_dataset_downloads_and_unzips(runtime):
     text, _ = call("cv_load_dataset", ref="titanic", dest="data/titanic", kind="competition")
     assert "KAGGLE competitions download -c titanic -p data/titanic" in text
-    assert "train.csv" in text
+    assert "train.csv" in text and "LOGIN none" in text
     text, _ = call("cv_load_dataset", ref="owner/set", dest="data/set")
     assert "KAGGLE datasets download -d owner/set -p data/set" in text
+
+
+def test_cv_load_dataset_lends_the_local_kaggle_login(runtime, kaggle):
+    text, _ = call("cv_load_dataset", ref="owner/set", dest="data/lent")
+    assert "LOGIN alice" in text, "the runtime's Kaggle command runs with this computer's login"
+    history, _ = call("run_code", code="print(('kaggle' + '-key') in repr(In))")
+    assert history.strip() == "False", "the login must not be left in the kernel's history"
+
+
+def test_kaggle_tools_run_locally_when_logged_in(runtime, kaggle, monkeypatch, tmp_path):
+    from thesis_mcp.connectors import kaggle_api
+
+    calls = []
+    monkeypatch.setattr(kaggle_api, "cli", lambda args, timeout=300, cwd=None: calls.append(args) or "ok")
+    assert call("kaggle_leaderboard", competition="titanic")[0] == "ok"
+    assert calls[-1] == ["competitions", "leaderboard", "-c", "titanic", "--show"]
+
+    # a submission file that lives on the runtime is fetched, then submitted from here
+    call("run_code", code="open('submission.csv', 'w').write('id,label\\n1,0\\n')")
+    call("kaggle_submit", competition="titanic", file="submission.csv", message="try 1")
+    local_file = calls[-1][calls[-1].index("-f") + 1]
+    assert open(local_file).read() == "id,label\n1,0\n"
+
+
+def test_kaggle_tools_without_login_or_runtime_say_how_to_log_in():
+    assert "login kaggle" in call("kaggle_leaderboard", competition="titanic")[0]

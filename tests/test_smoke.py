@@ -35,6 +35,8 @@ def test_all_tools_registered():
         "hf_space_status", "hf_space_hardware", "hf_space_pause", "hf_space_restart",
         # setup help
         "setup_guide", "example_script",
+        # starting and ending Colab/Kaggle sessions
+        "kaggle_runtime_start", "colab_runtime_start", "runtime_stop",
     }
     assert names == expected, f"missing {sorted(expected - names)}, unexpected {sorted(names - expected)}"
 
@@ -109,5 +111,5 @@ def test_server_starts_over_stdio_like_claude_code_launches_it(tmp_path):
     init, tools, result = asyncio.run(handshake())
     assert init.serverInfo.name == "thesis"
     assert "Hugging Face" in (init.instructions or "")
-    assert len(tools) == 51
+    assert len(tools) == 54
     assert result.content[0].text == "No runs yet."

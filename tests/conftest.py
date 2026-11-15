@@ -19,14 +19,17 @@ import pytest
 
 os.environ["THESIS_STATE_DIR"] = tempfile.mkdtemp(prefix="thesis-mcp-test-state-")
 os.environ["HF_TOKEN"] = "hf_test_token"
-for _var in ("JUPYTER_URL", "JUPYTER_TOKEN", "THESIS_CONTENTS_ROOT", "THESIS_RUN_ROOT"):
+os.environ["KAGGLE_CONFIG_DIR"] = tempfile.mkdtemp(prefix="thesis-mcp-test-kaggle-")  # no login
+for _var in ("JUPYTER_URL", "JUPYTER_TOKEN", "THESIS_CONTENTS_ROOT", "THESIS_RUN_ROOT",
+             "KAGGLE_USERNAME", "KAGGLE_KEY", "KAGGLE_API_TOKEN", "THESIS_RENDEZVOUS_URL"):
     os.environ.pop(_var, None)
 
 from huggingface_hub import HfApi  # noqa: E402
 
 from thesis_mcp import runtime_state as rs  # noqa: E402
 from thesis_mcp import server  # noqa: E402
-from thesis_mcp.connectors import hf  # noqa: E402
+from thesis_mcp import config  # noqa: E402
+from thesis_mcp.connectors import hf, kaggle_api  # noqa: E402
 
 STUBS = str(Path(__file__).parent / "stubs")
 JUPYTER_TOKEN = "test-jupyter-token"
@@ -84,12 +87,72 @@ def hub():
 
 
 @pytest.fixture(autouse=True)
-def clean_state():
-    """Each test starts with no connection, no runs and no Hugging Face runtime."""
+def clean_state(monkeypatch):
+    """Each test starts with no connection, no runs, no started session and no Kaggle login.
+
+    The rendezvous address points at a closed local port, so no test reaches the real
+    service; tests that need one use the ``rendezvous`` fixture.
+    """
     rs.store.data = {"kernel": {}, "runs": {}}
     rs.jupyter.disconnect()
+    kaggle_api._api = None
+    monkeypatch.setattr(config, "RENDEZVOUS_URL", "http://127.0.0.1:9")
     yield
     rs.jupyter.disconnect()
+    kaggle_api._api = None
+
+
+@pytest.fixture
+def rendezvous(monkeypatch):
+    """A local stand-in for the rendezvous service (same two calls as ntfy)."""
+    import json
+    import threading
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+    topics = {}
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_POST(self):
+            body = self.rfile.read(int(self.headers.get("Content-Length", 0))).decode()
+            topics.setdefault(self.path.strip("/"), []).append(body)
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(b"{}")
+
+        def do_GET(self):
+            topic = self.path.split("?")[0].strip("/").removesuffix("/json")
+            lines = "".join(json.dumps({"event": "message", "message": m}) + "\n"
+                            for m in topics.get(topic, []))
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(lines.encode())
+
+        def log_message(self, *_):
+            pass
+
+    httpd = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    url = f"http://127.0.0.1:{httpd.server_address[1]}"
+    monkeypatch.setattr(config, "RENDEZVOUS_URL", url)
+    yield {"url": url, "topics": topics}
+    httpd.shutdown()
+
+
+@pytest.fixture
+def kaggle():
+    """A logged-in Kaggle client, spec-checked against the installed kaggle library."""
+    import contextlib
+    import io
+
+    with contextlib.redirect_stdout(io.StringIO()):
+        from kaggle.api.kaggle_api_extended import KaggleApi
+    fake = mock.create_autospec(KaggleApi, instance=True)
+    fake.config_values = {"username": "alice", "key": "kaggle-key"}
+    fake.get_config_value.side_effect = fake.config_values.get
+    fake.kernels_push.return_value = mock.Mock(error=None, invalid_competition_sources=[],
+                                               invalid_dataset_sources=[])
+    kaggle_api._api = fake
+    return fake
 
 
 @pytest.fixture(scope="session")
