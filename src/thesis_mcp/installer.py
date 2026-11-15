@@ -32,7 +32,9 @@ def server_command() -> List[str]:
 
 
 def cli_command() -> str:
-    """The `thesis-mcp` program of this installation, by full path, for messages."""
+    """How to type the `thesis-mcp` command in messages: by name if it is on PATH."""
+    if shutil.which("thesis-mcp"):
+        return "thesis-mcp"
     name = "thesis-mcp.exe" if sys.platform == "win32" else "thesis-mcp"
     return f'"{Path(sys.executable).parent / name}"'
 
@@ -288,6 +290,7 @@ def run(keys: List[str], remove: bool = False, dry_run: bool = False) -> int:
             state = "installed" if changed else "already up to date"
             print(f"[ok] {client.label}: {state}{where}\n     {client.after}")
     if not remove and not dry_run and failed < len(targets):
-        print("\nNext: connect a machine to run on. Ask the assistant "
-              f"\"how do I connect Colab / Kaggle / Hugging Face?\" or run:\n  {cli_command()} doctor")
+        print("\nNext: restart the AI client, then ask it to \"connect a Kaggle GPU\" "
+              "(or Colab, or Hugging Face).\n"
+              f"See what is ready on your side with:  {cli_command()} doctor")
     return 1 if failed else 0

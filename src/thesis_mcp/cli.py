@@ -1,8 +1,8 @@
 """Command line of thesis-mcp.
 
 With no arguments it serves MCP over stdio, which is what AI clients run. The other
-commands set it up: ``install`` registers it with AI clients, ``doctor`` reports what is
-ready and what still needs doing.
+commands set it up: ``install`` registers it with AI clients, ``login`` logs in to Kaggle
+or Hugging Face, ``doctor`` reports what is ready and what still needs doing.
 """
 
 import argparse
@@ -43,6 +43,23 @@ def _clients(_args: argparse.Namespace) -> int:
     return 0
 
 
+def _login(args: argparse.Namespace) -> int:
+    """Hand over to the platform's own login program; nothing is stored by thesis-mcp."""
+    import subprocess
+    from pathlib import Path
+
+    if args.platform == "kaggle":
+        command = [sys.executable, "-m", "kaggle", "auth", "login"]
+        print("Logging in to Kaggle. If asked, also verify your phone number at "
+              "https://www.kaggle.com/settings (Kaggle requires it for GPU and internet).\n")
+    else:
+        hf = Path(sys.executable).parent / ("hf.exe" if sys.platform == "win32" else "hf")
+        command = [str(hf), "auth", "login"]
+        print("Logging in to Hugging Face. Create a token with WRITE access at "
+              "https://huggingface.co/settings/tokens and paste it below.\n")
+    return subprocess.call(command)
+
+
 def _doctor(args: argparse.Namespace) -> int:
     from . import doctor
 
@@ -79,6 +96,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     sub.add_parser("clients", help="list supported AI clients and where they are installed"
                    ).set_defaults(run=_clients)
+
+    login = sub.add_parser("login", help="log in to Kaggle or Hugging Face (once)")
+    login.add_argument("platform", choices=["kaggle", "huggingface"])
+    login.set_defaults(run=_login)
 
     doctor = sub.add_parser("doctor", help="check what is set up and what is still missing")
     doctor.add_argument("--online", action="store_true",
