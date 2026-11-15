@@ -1,62 +1,101 @@
 # thesis-mcp — working notes for Claude Code
 
-This repo IS an MCP server that you (Claude Code) use to run ML thesis experiments
-(reinforcement learning or computer vision) on a **Google Colab / Kaggle GPU**. The
-server is defined here in `src/thesis_mcp/`; when it's registered, its tools appear as
-`thesis` tools. This file is your memory across `/clear` — read it first each session.
+This repo IS an MCP server that you (Claude Code) use to run ML work — RL, CV, LLM
+fine-tuning, experiments, competitions — on remote GPUs: **Google Colab, Kaggle, and
+rented Hugging Face machines**. The server is defined in `src/thesis_mcp/`; when it is
+registered, its tools appear as `thesis` tools. This file is your memory across
+`/clear` — read it first each session.
 
-## Every session, do this first
-1. Make sure a runtime is up: the user runs `runtime/colab_bootstrap.py` (or
-   `runtime/kaggle_bootstrap.py`) in a Colab/Kaggle cell and exports the printed
-   `JUPYTER_URL` / `JUPYTER_TOKEN` before launching Claude Code.
-2. Call **`connect_runtime`**. It re-attaches to an already-running kernel if one
-   exists (so a fresh session after `/clear` keeps the same runtime and runs).
-3. `runtime_status` to confirm the GPU.
+## Every session, get a machine first
+Pick one, depending on what the user is using:
+
+| Where | How |
+|-------|-----|
+| Colab / Kaggle (free) | The user runs `runtime/colab_bootstrap.py` or `runtime/kaggle_bootstrap.py` in a cell and exports `JUPYTER_URL` / `JUPYTER_TOKEN`. Call **`connect_runtime`**. |
+| Hugging Face, interactive (paid) | **`hf_runtime_start(flavor, timeout)`**, then **`hf_runtime_connect`** (repeat until ready). **`hf_runtime_stop`** when done. |
+| Hugging Face, one training per machine (paid) | **`hf_job_launch(script, run_name, flavor, timeout)`**. No runtime needed. |
+| A JupyterLab Space the user already has | `connect_runtime(url, token, hf_auth=True)`. |
+
+`connect_runtime` and `hf_runtime_connect` re-attach to a kernel that is still running,
+so after `/clear` call the right one again and carry on. `runtime_status` confirms the GPU.
 
 ## The one rule that matters: training is fire-and-poll
-Colab/Kaggle disconnect, and each tool call is short. So:
+Remote machines disconnect, and each tool call is short. So:
 - **Never** run long training with `run_code` — it will hit the timeout.
-- Use **`launch_training(script, run_name)`** → returns immediately (job runs in the
-  background on the VM). Then poll `get_run_status` / `get_logs` / `get_metrics` and
-  visualize with `plot_metrics`.
+- On a connected runtime use **`launch_training(script, run_name)`**; on its own Hugging
+  Face machine use **`hf_job_launch`**. Both return immediately.
+- Follow any run the same way: `get_run_status`, `get_logs`, `get_metrics`,
+  `plot_metrics`, `stop_run`. `list_runs` shows what exists.
 - Inside a training `script`, these are injected — do not import them:
-  `log_metric(step, **kv)`, `save_checkpoint_file(path)`, `THESIS_RUN_DIR`, `SEED`.
-- Checkpoints live in the run's `checkpoints/` dir on the VM. Call **`save_checkpoint`**
-  to copy them to the user's local machine so they survive the VM shutting down;
-  `restore_checkpoint` puts them back on a fresh runtime.
+  `log_metric(step, **kv)`, `save_checkpoint_file(path)` (file or folder),
+  `THESIS_RUN_DIR`, `SEED`. The same script runs on every backend.
+
+## Results must leave the machine
+Every remote disk is temporary.
+- Runtime run: `save_checkpoint` (download to the user's computer) or `hf_push_run`
+  (upload straight to a private Hub repo). `restore_checkpoint` puts a file back.
+- Hugging Face job: `save_checkpoint_file` uploads to the private Hub repo
+  `<user>/<run_name>` by itself; `save_checkpoint` downloads from there.
+- A Hugging Face runtime that shuts down for idleness first archives its runs folder to
+  `<user>/thesis-mcp-archive`. A timeout or `hf_runtime_stop` does **not** — push first.
+
+## Money (Hugging Face only)
+Hugging Face machines bill per minute until they end.
+- Ask the user before renting a GPU flavor. `hf_hardware` lists flavors and prices.
+- Always pass a sensible `timeout`. An interactive runtime also stops after
+  `idle_minutes` with nothing running.
+- Before ending a session, `hf_job_list` must show nothing unexpected running.
+- `hf_whoami` checks the login and whether the account can pay.
 
 ## Tool map
 - **Runtime/exec:** `connect_runtime`, `runtime_status`, `run_code`, `upload_file`,
   `download_file`, `fetch_image`.
-- **Training:** `launch_training`, `get_run_status`, `get_logs`, `get_metrics`,
-  `stop_run`, `list_runs`, `plot_metrics`, `save_checkpoint`, `restore_checkpoint`.
-- **Notebook editing (edit Colab cells):** `notebook_create`, `notebook_read`,
-  `notebook_add_cell`, `notebook_edit_cell`, `notebook_delete_cell`, `notebook_run_cell`.
+- **Runs:** `launch_training`, `get_run_status`, `get_logs`, `get_metrics`, `stop_run`,
+  `list_runs`, `plot_metrics`, `save_checkpoint`, `restore_checkpoint`.
+- **Notebook cells:** `notebook_create`, `notebook_read`, `notebook_add_cell`,
+  `notebook_edit_cell`, `notebook_delete_cell`, `notebook_run_cell`.
 - **RL:** `rl_setup`, `rl_reward_curve`, `rl_record_rollout`, `rl_seed_sweep`.
 - **CV:** `cv_load_dataset`, `cv_training_curves`, `cv_show_predictions`.
-- **Kaggle:** `kaggle_search_datasets`, `kaggle_competition_files`, `kaggle_submit`,
-  `kaggle_submissions`, `kaggle_leaderboard`.
+- **Kaggle competitions:** `kaggle_search_datasets`, `kaggle_competition_files`,
+  `kaggle_submit`, `kaggle_submissions`, `kaggle_leaderboard`.
+- **Hugging Face compute:** `hf_hardware`, `hf_job_launch`, `hf_job_list`,
+  `hf_job_cancel`, `hf_runtime_start`, `hf_runtime_connect`, `hf_runtime_stop`.
+- **Hugging Face Hub / Spaces:** `hf_whoami`, `hf_search`, `hf_upload`, `hf_download`,
+  `hf_push_run`, `hf_space_status`, `hf_space_hardware`, `hf_space_pause`,
+  `hf_space_restart`.
 
 ## Recipes
+**LLM fine-tune** (see `examples/llm_lora_finetune.py`):
+`hf_job_launch(open('examples/llm_lora_finetune.py').read(), "smollm-quotes",
+flavor="t4-small", timeout="1h", requirements="torch transformers peft datasets accelerate",
+env_json='{"BASE_MODEL": "...", "MAX_STEPS": "300"}')` → poll → `plot_metrics(run, "loss")`.
+The adapter lands in the Hub repo `<user>/smollm-quotes`.
+
 **RL** (see `examples/rl_cartpole.py`):
 `rl_setup("classic-control")` → `launch_training(open('examples/rl_cartpole.py').read(),
 "ppo_cartpole", requirements="gymnasium[classic-control] stable-baselines3")` → poll →
-`rl_reward_curve("ppo_cartpole")` → `rl_record_rollout(...)`. Report several seeds with
-`rl_seed_sweep(script, "ppo_cartpole", "0,1,2")`.
+`rl_reward_curve("ppo_cartpole")` → `rl_record_rollout(...)`. Several seeds:
+`rl_seed_sweep(script, "ppo_cartpole", "0,1,2")`; add `hf_flavor="t4-small"` to give each
+seed its own Hugging Face machine.
 
-**CV** (see `examples/cv_mnist.py`):
-optionally `cv_load_dataset("owner/slug")` or `cv_load_dataset("<competition>", kind="competition")`
-→ `launch_training(open('examples/cv_mnist.py').read(), "mnist_cnn", requirements="torch torchvision")`
-→ poll → `cv_training_curves("mnist_cnn")` → `cv_show_predictions(code)` → `kaggle_submit(...)`.
+**CV / competition** (see `examples/cv_mnist.py`):
+`cv_load_dataset("<competition>", kind="competition")` → `launch_training(...)` → poll →
+`cv_training_curves(run)` → `cv_show_predictions(code)` → `kaggle_submit(...)` →
+`kaggle_submissions(...)`.
 
 ## Editing this server
-Tools are grouped in `src/thesis_mcp/tools/{core,notebook,rl,cv,kaggle_tools}.py`; each has
-`register(mcp)`, wired in `src/thesis_mcp/server.py`. The runtime connection + run registry
-are singletons in `src/thesis_mcp/runtime_state.py`. After changing tool code, the user must
-restart the MCP (relaunch Claude Code or `/mcp` reconnect). Run `uv run pytest` for the
-offline smoke tests.
+Tools are grouped in `src/thesis_mcp/tools/`: `core`, `notebook`, `rl`, `cv`,
+`kaggle_tools`, `hf_jobs` (jobs + interactive runtime), `hf_hub` (Hub + Spaces); each has
+`register(mcp)`, wired in `server.py`. Connections live in `connectors/` (`jupyter.py`,
+`hf.py`, `store.py`); the shared singletons are in `runtime_state.py`.
+`remote/hf_entrypoint.py` is the program that runs on a rented Hugging Face machine.
+
+Before committing: `uv run pytest` (real Jupyter server + spec-checked Hugging Face mock)
+and `uvx ruff check src tests`. After changing tool code the user must restart the MCP
+(relaunch Claude Code or `/mcp` reconnect).
 
 ## Never
-- Never commit secrets. `JUPYTER_TOKEN` and Kaggle keys come from the environment only;
-  `.thesis-mcp/`, `kaggle.json`, and `.env` are git-ignored.
-- Never assume a runtime is alive after a long gap — re-run `connect_runtime` / `runtime_status`.
+- Never commit secrets. `JUPYTER_TOKEN`, `HF_TOKEN` and Kaggle keys come from the
+  environment only; `.mcp.json`, `.thesis-mcp/`, `kaggle.json` and `.env` are git-ignored.
+- Never leave a Hugging Face machine running without telling the user.
+- Never assume a runtime is alive after a long gap — reconnect and check.

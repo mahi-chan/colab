@@ -4,8 +4,9 @@
       "command": "uv",
       "args": ["run", "thesis-mcp"],
       "env": {
-        "JUPYTER_URL": "${JUPYTER_URL}",
-        "JUPYTER_TOKEN": "${JUPYTER_TOKEN}"
+        "JUPYTER_URL": "${JUPYTER_URL:-}",
+        "JUPYTER_TOKEN": "${JUPYTER_TOKEN:-}",
+        "HF_TOKEN": "${HF_TOKEN:-}"
       }
     }
   }

@@ -6,10 +6,13 @@
 #   3. Copy the printed JUPYTER_URL / JUPYTER_TOKEN to your local machine.
 # =====================================================================
 
-# --- (optional) Kaggle credentials, needed for cv_load_dataset / kaggle_* ---
+# --- (optional) credentials for tools that run ON this machine -------------
+# Kaggle (cv_load_dataset / kaggle_*):
 # import os
 # os.environ["KAGGLE_USERNAME"] = "your_username"
 # os.environ["KAGGLE_KEY"]      = "your_key"
+# Hugging Face (hf_push_run, gated models, datasets):
+# os.environ["HF_TOKEN"] = "hf_..."
 
 import os, re, secrets, shutil, subprocess, time, urllib.request
 

@@ -8,6 +8,10 @@
 # cv_load_dataset / kaggle_* work out of the box here.
 # =====================================================================
 
+# --- (optional) Hugging Face token, for hf_push_run / gated models ---
+# import os
+# os.environ["HF_TOKEN"] = "hf_..."
+
 import os, re, secrets, shutil, subprocess, time, urllib.request
 
 TOKEN = secrets.token_hex(16)
