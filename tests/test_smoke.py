@@ -27,9 +27,14 @@ def test_all_tools_registered():
         # kaggle
         "kaggle_submit", "kaggle_submissions", "kaggle_leaderboard",
         "kaggle_competition_files", "kaggle_search_datasets",
+        # hugging face: jobs and the interactive runtime
+        "hf_hardware", "hf_job_launch", "hf_job_list", "hf_job_cancel",
+        "hf_runtime_start", "hf_runtime_connect", "hf_runtime_stop",
+        # hugging face: hub and spaces
+        "hf_whoami", "hf_search", "hf_upload", "hf_download", "hf_push_run",
+        "hf_space_status", "hf_space_hardware", "hf_space_pause", "hf_space_restart",
     }
-    missing = expected - names
-    assert not missing, f"missing tools: {sorted(missing)}"
+    assert names == expected, f"missing {sorted(expected - names)}, unexpected {sorted(names - expected)}"
 
 
 def test_every_tool_has_a_description():
@@ -54,3 +59,53 @@ def test_store_kernel_memory(tmp_path):
     s = RunStore(str(tmp_path))
     s.save_kernel(url="https://x.trycloudflare.com", kernel_id="abc", contents_root="/content")
     assert RunStore(str(tmp_path)).get_kernel()["kernel_id"] == "abc"
+
+
+def test_unexpanded_mcp_json_placeholders_read_as_unset():
+    """A variable missing from the shell can arrive as the literal "${VAR}" from .mcp.json."""
+    import os
+    import subprocess
+    import sys
+
+    env = {**os.environ, "JUPYTER_URL": "${JUPYTER_URL}", "HF_TOKEN": "${HF_TOKEN:-}"}
+    code = ("from thesis_mcp import config; import os; "
+            "print(repr(config.JUPYTER_URL), os.environ.get('HF_TOKEN'))")
+    out = subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, text=True, check=True)
+    assert out.stdout.split() == ["''", "None"]
+
+
+def test_run_names_are_validated():
+    from thesis_mcp.tools.core import check_run_name
+
+    for good in ("ppo_cartpole", "llm-v2.1", "a"):
+        assert check_run_name(good) == ""
+    for bad in ("", "../x", "a b", "-lead", "x/y", "trailing.", "n" * 81):
+        assert check_run_name(bad), bad
+
+
+def test_server_starts_over_stdio_like_claude_code_launches_it(tmp_path):
+    """Start the installed `thesis-mcp` command and do a real MCP handshake with it."""
+    import os
+    import shutil
+
+    from mcp import ClientSession, StdioServerParameters
+    from mcp.client.stdio import stdio_client
+
+    command = shutil.which("thesis-mcp")
+    assert command, "the thesis-mcp entry point is not installed"
+
+    async def handshake():
+        env = {**os.environ, "THESIS_STATE_DIR": str(tmp_path)}
+        params = StdioServerParameters(command=command, args=[], env=env)
+        async with stdio_client(params) as (read, write):
+            async with ClientSession(read, write) as session:
+                init = await session.initialize()
+                tools = await session.list_tools()
+                result = await session.call_tool("list_runs", {})
+                return init, tools.tools, result
+
+    init, tools, result = asyncio.run(handshake())
+    assert init.serverInfo.name == "thesis"
+    assert "Hugging Face" in (init.instructions or "")
+    assert len(tools) == 49
+    assert result.content[0].text == "No runs yet."
