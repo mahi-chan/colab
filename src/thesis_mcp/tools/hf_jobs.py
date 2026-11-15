@@ -21,6 +21,7 @@ import json
 import secrets
 import shlex
 import time
+import zlib
 from pathlib import Path
 
 from huggingface_hub.errors import HfHubHTTPError
@@ -296,13 +297,14 @@ def register(mcp, connect_impl):
                 pass  # the remembered job is gone; start a new one
 
         nonce = secrets.token_hex(8)
-        entrypoint = (Path(__file__).parent.parent / "remote" / "hf_entrypoint.py").read_bytes()
-        boot = ("import base64,sys;"
-                "exec(compile(base64.b64decode(sys.argv[1]),'hf_entrypoint.py','exec'))")
+        entrypoint = (Path(__file__).parent.parent / "remote" / "entrypoint.py").read_bytes()
+        # shipped compressed: the whole program travels as one command-line argument
+        boot = ("import base64,sys,zlib;"
+                "exec(compile(zlib.decompress(base64.b64decode(sys.argv[1])),'entrypoint.py','exec'))")
         image = image or config.HF_RUNTIME_IMAGE
         job = hf.api().run_job(
             image=image,
-            command=["python3", "-c", boot, base64.b64encode(entrypoint).decode()],
+            command=["python3", "-c", boot, base64.b64encode(zlib.compress(entrypoint, 9)).decode()],
             env={
                 "THESIS_PORT": str(RUNTIME_PORT),
                 "THESIS_ROOT": RUNTIME_ROOT,

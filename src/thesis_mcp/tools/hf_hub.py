@@ -115,8 +115,8 @@ def register(mcp):
 
         The upload goes straight from the remote machine, in the background, so large
         checkpoints never pass through this computer. Call it again to check progress.
-        Needs a Hugging Face token ON the runtime: automatic on a machine from
-        hf_runtime_start; on Colab/Kaggle set HF_TOKEN in the bootstrap cell.
+        It uses this computer's Hugging Face login for that one upload; the token is not
+        kept on the runtime.
 
         repo_id: defaults to "<your username>/<run_name>".
         """
@@ -128,6 +128,10 @@ def register(mcp):
                     f"https://huggingface.co/{run['hub_repo']}")
         repo_id = repo_id or f"{hf.username()}/{run_name}"
         rd = run["dir"]
+        try:
+            login = {"HF_TOKEN": hf.token()}
+        except hf.HfNotLoggedIn:
+            login = {}  # the runtime may have its own login (a Hugging Face machine does)
         rs.jupyter.upload_bytes(rs.to_rel(posixpath.join(rd, "_hub_push.py")), PUSH_SCRIPT.encode())
         code = (
             "import os, subprocess, sys, time\n"
@@ -145,11 +149,12 @@ def register(mcp):
             "    except ImportError:\n"
             "        subprocess.run([sys.executable, '-m', 'pip', 'install', '-q', 'huggingface_hub'])\n"
             "        import huggingface_hub\n"
-            "    if not huggingface_hub.get_token():\n        print('STATE no_token')\n"
+            f"    env = {{**os.environ, **{login!r}}}\n"
+            "    if not (env.get('HF_TOKEN') or huggingface_hub.get_token()):\n        print('STATE no_token')\n"
             "    else:\n"
             f"        p = subprocess.Popen([sys.executable, '_hub_push.py', rd, {repo_id!r}, "
             f"{'1' if private else '0'!r}], cwd=rd, stdout=open(log, 'w'), "
-            "stderr=subprocess.STDOUT, start_new_session=True)\n"
+            "stderr=subprocess.STDOUT, start_new_session=True, env=env)\n"
             "        open(pidf, 'w').write(str(p.pid))\n"
             "        print('STATE started')\n"
             "for _ in range(40):\n"
@@ -159,13 +164,13 @@ def register(mcp):
             "if os.path.exists(log):\n"
             "    print(chr(10).join(open(log, errors='replace').read().splitlines()[-8:]))\n"
         )
-        res = rs.jupyter.execute(code, timeout=120)
+        # the code carries the login, so keep it out of the kernel's history
+        res = rs.jupyter.execute(code, timeout=120, store_history=False)
         out = res.text
         if "STATE no_token" in out:
-            return ("The runtime has no Hugging Face token, so it cannot upload. On Colab/Kaggle, "
-                    "set os.environ['HF_TOKEN'] in the bootstrap cell (or run "
-                    "`huggingface_hub.login()` in a cell), then call hf_push_run again. "
-                    "Alternatively use save_checkpoint to download, then hf_upload.")
+            return ("No Hugging Face login is available, so nothing was uploaded. Log in on this "
+                    "computer (see setup_guide('huggingface')) and call hf_push_run again, or "
+                    "use save_checkpoint to download the results instead.")
         if "PUSH_DONE" in out:
             return f"Pushed run '{run_name}' to https://huggingface.co/{repo_id}"
         if "ALIVE 1" in out:

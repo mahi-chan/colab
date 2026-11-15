@@ -1,7 +1,7 @@
 """Client for a Jupyter Server running on the remote GPU machine.
 
 On Colab/Kaggle the runtime starts a ``jupyter server`` and exposes it over a tunnel
-(see ``runtime/colab_bootstrap.py``); on Hugging Face it runs inside a Job or Space
+(see ``remote/entrypoint.py``); on Hugging Face it runs inside a Job or Space
 behind Hugging Face's own authentication. This client talks to that server:
 
 * code execution on a kernel over the ``/api/kernels/{id}/channels`` WebSocket,
@@ -95,9 +95,8 @@ class JupyterClient:
     def _api(self, path: str) -> str:
         if not self.base_url:
             raise RuntimeNotConnected(
-                "No runtime connected. Colab/Kaggle: run the bootstrap cell, export "
-                "JUPYTER_URL / JUPYTER_TOKEN, then call connect_runtime. "
-                "Hugging Face: call hf_runtime_start, then hf_runtime_connect."
+                "No runtime connected. Start one with kaggle_runtime_start, colab_runtime_start "
+                "or hf_runtime_start, then connect (setup_guide explains each)."
             )
         return f"{self.base_url}{path}"
 
@@ -157,8 +156,12 @@ class JupyterClient:
         return base.replace("https://", "wss://", 1).replace("http://", "ws://", 1)
 
     # -- execution ----------------------------------------------------------
-    def execute(self, code: str, timeout: int = 120) -> ExecResult:
-        """Run ``code`` on the kernel and collect its outputs until it goes idle."""
+    def execute(self, code: str, timeout: int = 120, store_history: bool = True) -> ExecResult:
+        """Run ``code`` on the kernel and collect its outputs until it goes idle.
+
+        ``store_history=False`` keeps the code out of the kernel's history; use it for
+        code that carries a credential.
+        """
         self.ensure_kernel()
         ws = create_connection(
             self._ws_url(),
@@ -181,7 +184,7 @@ class JupyterClient:
             "content": {
                 "code": code,
                 "silent": False,
-                "store_history": True,
+                "store_history": store_history,
                 "user_expressions": {},
                 "allow_stdin": False,
                 "stop_on_error": True,

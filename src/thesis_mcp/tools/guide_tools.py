@@ -1,7 +1,7 @@
 """Setup help the assistant can read, so it works the same in every AI client.
 
-Not every client can open files from this repository, so the connection steps, the
-notebook cells and the example training scripts are available as tools.
+Not every client can open files from this repository, so the connection steps and the
+example training scripts are available as tools.
 """
 
 from .. import doctor, guide
@@ -12,8 +12,7 @@ def register(mcp):
     def setup_guide(platform: str = "") -> str:
         """How to connect a place to run on: "colab", "kaggle", "huggingface" or "space".
 
-        With no platform it reports what is already set up and what is missing. For Colab
-        and Kaggle the answer includes the exact notebook cell to give to the user.
+        With no platform it reports what is already set up and what is missing.
         Use this whenever the user asks how to connect, or a tool says nothing is connected.
         """
         if not platform.strip():

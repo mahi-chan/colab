@@ -10,6 +10,7 @@ import posixpath
 from mcp.server.fastmcp import Image
 
 from .. import runtime_state as rs
+from ..connectors import kaggle_api
 from . import _plots, hf_jobs
 from .core import is_job
 from .kaggle_tools import KAGGLE_SNIPPET
@@ -23,15 +24,18 @@ def register(mcp):
 
         ref:  "owner/dataset-slug" for datasets, or the competition slug for competitions.
         kind: "dataset" or "competition".
-        Requires Kaggle credentials on the runtime (set in the bootstrap cell, or
-        automatic on Kaggle notebooks).
+        Works when this computer is logged in to Kaggle (the login is used for this one
+        download and is not kept on the runtime), or on a Kaggle machine. On a session from
+        kaggle_runtime_start, prefer its ``competition`` / ``datasets`` arguments: the data
+        is then already under /kaggle/input/.
         """
+        login = kaggle_api.forward_env()
         sub = ["datasets", "download", "-d"] if kind == "dataset" else ["competitions", "download", "-c"]
         code = (
             KAGGLE_SNIPPET
             + "import os, glob, zipfile\n"
             f"dest = {dest!r}\nos.makedirs(dest, exist_ok=True)\n"
-            f"r = _kaggle({sub!r} + [{ref!r}, '-p', dest])\n"
+            f"r = _kaggle({sub!r} + [{ref!r}, '-p', dest], env={login!r})\n"
             "print(r.stdout.strip())\n"
             "if r.stderr.strip(): print('[stderr]', r.stderr.strip())\n"
             + (
@@ -41,7 +45,8 @@ def register(mcp):
             )
             + "print('CONTENTS', sorted(os.listdir(dest))[:30])\n"
         )
-        return rs.jupyter.execute(code, timeout=900).text or "(no output)"
+        # the code carries the login, so keep it out of the kernel's history
+        return rs.jupyter.execute(code, timeout=900, store_history=False).text or "(no output)"
 
     @mcp.tool()
     @hf_jobs.hf_errors

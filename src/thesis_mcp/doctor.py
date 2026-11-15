@@ -27,23 +27,23 @@ def endpoints(online: bool = False) -> str:
         lines.append("[to do]   Hugging Face: no token. Run once:  " + guide.hf_login_command()
                      + "\n          (token with write access from https://huggingface.co/settings/tokens)")
 
-    saved = rs.store.get_kernel()
-    if config.JUPYTER_URL:
-        lines.append(f"[ready]   Colab/Kaggle: JUPYTER_URL is set ({config.JUPYTER_URL}); "
-                     "ask the assistant to connect.")
-    elif saved.get("url"):
-        lines.append(f"[known]   Last runtime: {saved['url']}. Ask the assistant to reconnect "
-                     "(it may have shut down since).")
-    else:
-        lines.append("[to do]   Colab/Kaggle: nothing connected. Run the bootstrap cell in a notebook "
-                     "and give the printed URL and token to the assistant.")
+    from .connectors import kaggle_api
 
+    if kaggle_api.logged_in():
+        lines.append(f"[ready]   Kaggle: logged in as {kaggle_api.username()}. The assistant can start "
+                     "GPU sessions and use competitions.")
+    else:
+        lines.append("[to do]   Kaggle: not logged in. Run once:  " + guide.kaggle_login_command())
+    lines.append("[ready]   Colab: no setup. The assistant gives you one line to run in a notebook.")
+
+    saved = rs.store.get_kernel()
+    if saved.get("url"):
+        lines.append(f"[known]   Last runtime: {saved.get('platform') or saved['url']}. "
+                     "Ask the assistant to reconnect (it may have shut down since).")
     job = rs.store.get_section("hf_runtime").get("job_id")
     if job:
         lines.append(f"[billing] A Hugging Face runtime was started (job {job}). "
                      "Ask the assistant to connect to it or stop it.")
-    lines.append("[info]    Kaggle competitions: credentials live on the machine that runs the code "
-                 "(automatic on Kaggle; see the top of the Colab cell otherwise).")
     return "\n".join(lines)
 
 

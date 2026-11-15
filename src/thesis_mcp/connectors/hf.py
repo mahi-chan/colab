@@ -29,9 +29,9 @@ def token() -> str:
     tok = get_token()
     if not tok:
         raise HfNotLoggedIn(
-            "No Hugging Face token found. Create one at https://huggingface.co/settings/tokens "
-            "(type: write), then either run `hf auth login` once, or export HF_TOKEN before "
-            "starting Claude Code."
+            "No Hugging Face token found. The user creates one with write access at "
+            "https://huggingface.co/settings/tokens and logs in once, in a terminal, with: "
+            "thesis-mcp login huggingface"
         )
     return tok
 

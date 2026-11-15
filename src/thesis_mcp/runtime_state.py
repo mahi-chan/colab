@@ -18,8 +18,9 @@ store = RunStore(config.STATE_DIR)
 def _rehydrate() -> JupyterClient:
     """Rebuild the connection remembered from a previous session.
 
-    Secrets are never persisted, so tokens always come from the environment (or, for
-    a Hugging Face runtime we started, are re-derived from the HF token).
+    Account credentials are never persisted: tokens come from the environment, or for a
+    Hugging Face runtime we started are re-derived from the HF token. The one thing kept
+    is the one-time pairing code of a Colab/Kaggle session, which dies with that session.
     """
     saved = store.get_kernel()
     saved_url = (saved.get("url") or "").rstrip("/")
@@ -29,7 +30,8 @@ def _rehydrate() -> JupyterClient:
     if not url or url != saved_url:
         return JupyterClient(url=url, token=config.JUPYTER_TOKEN)
 
-    token, bearer = config.JUPYTER_TOKEN, ""
+    # A session we paired with uses its pairing code as the Jupyter password.
+    token, bearer = saved.get("pair_code") or config.JUPYTER_TOKEN, ""
     if saved.get("auth") == "hf":
         try:
             bearer = hf.token()

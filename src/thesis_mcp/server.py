@@ -5,25 +5,28 @@ Registers every tool group and runs over stdio (how Claude Code launches it).
 
 from mcp.server.fastmcp import FastMCP
 
-from .tools import core, cv, guide_tools, hf_hub, hf_jobs, kaggle_tools, notebook, rl
+from .tools import core, cv, guide_tools, hf_hub, hf_jobs, kaggle_tools, notebook, rl, sessions
 
 INSTRUCTIONS = """\
 Runs ML work (RL, CV, LLM fine-tuning, experiments, competitions) on remote GPUs:
 Google Colab, Kaggle, and rented Hugging Face machines.
 
 If the user asks how to set anything up, or nothing is connected yet, call
-`setup_guide` (it returns exact steps, including the notebook cell to give the user).
+`setup_guide` (it returns the exact steps for each platform).
 `example_script` returns ready-made training scripts.
 
 Get a machine first — one of:
-  * Colab/Kaggle: the user runs the bootstrap cell from `setup_guide`, then
-    `connect_runtime(url, token)` with the two values the cell printed.
-  * Hugging Face, interactive: `hf_runtime_start(flavor)` then `hf_runtime_connect`.
-    It bills per minute: call `hf_runtime_stop` when the work is done.
+  * Kaggle (free GPU): `kaggle_runtime_start`, then `connect_runtime`. Fully automatic
+    when the user is logged in to Kaggle on this computer.
+  * Colab (free GPU): `colab_runtime_start` returns one line for the user to run in a
+    Colab cell; when it is running, `connect_runtime`. Nothing is copied back.
+  * Hugging Face, interactive (rented): `hf_runtime_start(flavor)` then
+    `hf_runtime_connect`. It bills per minute: `hf_runtime_stop` when done.
   * Hugging Face, one training = one machine: `hf_job_launch(script, run_name, flavor,
     timeout)`. No runtime needed; the machine stops when the script ends.
-`connect_runtime` / `hf_runtime_connect` re-attach to a still-running kernel, so call
-one at the start of every session.
+`connect_runtime` (no arguments) and `hf_runtime_connect` re-attach to a runtime that is
+still up, so call one at the start of every session. `runtime_stop` ends a Colab/Kaggle
+session.
 
 Then:
   * quick work on the runtime: `run_code`, or edit a notebook with `notebook_*`.
@@ -56,6 +59,7 @@ kaggle_tools.register(mcp)
 hf_jobs.register(mcp, core.connect_impl)
 hf_hub.register(mcp)
 guide_tools.register(mcp)
+sessions.register(mcp, core.connect_impl)
 
 
 def main() -> None:

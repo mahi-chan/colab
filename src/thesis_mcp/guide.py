@@ -1,10 +1,9 @@
 """Step-by-step instructions for connecting each place the work can run.
 
-Shared by the ``setup_guide`` tool (so any AI client can walk the user through it), the
-``thesis-mcp doctor`` command, and nothing else — one source for the instructions.
+Shared by the ``setup_guide`` tool (so any AI client can walk the user through it) and
+the ``thesis-mcp doctor`` command — one source for the instructions.
 """
 
-import sys
 from pathlib import Path
 from typing import List
 
@@ -12,8 +11,8 @@ PLATFORMS = ("colab", "kaggle", "huggingface", "space")
 
 
 def _asset_dir(kind: str) -> Path:
-    """``runtime`` or ``examples``: inside the package when installed from a wheel,
-    otherwise at the top of the repository checkout."""
+    """``examples``: inside the package when installed from a wheel, otherwise at the top
+    of the repository checkout."""
     packaged = Path(__file__).parent / "_assets" / kind
     return packaged if packaged.is_dir() else Path(__file__).resolve().parents[2] / kind
 
@@ -30,51 +29,57 @@ def read_asset(kind: str, name: str) -> str:
 
 
 def hf_login_command() -> str:
-    """The `hf` program that belongs to this installation, by full path."""
-    exe = Path(sys.executable).parent / ("hf.exe" if sys.platform == "win32" else "hf")
-    return f'"{exe}" auth login' if exe.exists() else "hf auth login"
+    from .installer import cli_command
+
+    return f"{cli_command()} login huggingface"
 
 
-def _notebook_steps(site: str, settings: str, cell_file: str, extra: str) -> str:
-    return f"""\
-Connect {site} (free GPU). The user does steps 1-3 in their browser.
+def kaggle_login_command() -> str:
+    from .installer import cli_command
 
-1. {settings}
-2. Paste the cell below into the notebook and run it. Leave it running: it hosts the
-   connection, and stopping it disconnects the assistant.
-3. After a few seconds the cell prints two lines, JUPYTER_URL and JUPYTER_TOKEN.
-   Give both values to the assistant.
-4. The assistant calls connect_runtime(url="<JUPYTER_URL>", token="<JUPYTER_TOKEN>"),
-   then runtime_status to confirm the GPU.
-
-{extra}
-The address changes every time the cell is run again, so repeat steps 2-4 after the
-notebook disconnects. Runs and files on the machine are lost when it is recycled:
-download results with save_checkpoint (or hf_push_run) as you go.
-
------ cell to paste ({cell_file}) -----
-{read_asset("runtime", cell_file)}"""
+    return f"{cli_command()} login kaggle"
 
 
 def guide(platform: str) -> str:
     platform = platform.strip().lower()
     if platform == "colab":
-        return _notebook_steps(
-            "Google Colab",
-            "Open https://colab.research.google.com, create a notebook, and choose "
-            "Runtime > Change runtime type > GPU.",
-            "colab_bootstrap.py",
-            "For Kaggle competitions or the Hugging Face Hub from Colab, fill in the optional\n"
-            "credential lines at the top of the cell before running it.\n",
-        )
+        return """\
+Connect Google Colab (free GPU). Google does not let a program start a Colab session,
+so the user runs one line there; nothing is copied back.
+
+1. Call colab_runtime_start. It returns the steps and one line of code.
+2. The user opens https://colab.new, picks Runtime > Change runtime type > T4 GPU,
+   pastes the line into a cell and runs it. The cell keeps running: that is expected.
+3. When the cell prints "connected", call connect_runtime (no arguments). The session
+   is found automatically. runtime_status then confirms the GPU.
+
+After Colab disconnects, repeat from step 1 (each session gets a fresh line). Files on
+the machine are lost when Colab recycles it: use save_checkpoint or hf_push_run as you
+go. runtime_stop ends the session from here."""
     if platform == "kaggle":
-        return _notebook_steps(
-            "Kaggle Notebooks",
-            "Open https://www.kaggle.com/code, create a notebook, and in its settings set "
-            "Accelerator = GPU and Internet = On (both need a phone-verified account).",
-            "kaggle_bootstrap.py",
-            "Kaggle competition tools work here without extra credentials.\n",
-        )
+        return f"""\
+Connect Kaggle (free GPU, about 30 hours a week). Fully automatic after a one-time login.
+
+One-time setup, done by the user:
+1. On https://www.kaggle.com/settings verify the phone number (Kaggle requires it for
+   GPU and internet access).
+2. Log in on this computer, in a terminal:
+       {kaggle_login_command()}
+   (Alternative: create an API token on the same settings page and save the downloaded
+   kaggle.json as ~/.kaggle/kaggle.json.)
+
+Every session, done by the assistant:
+   kaggle_runtime_start()           start a GPU session; no browser needed
+   connect_runtime()                attach (repeat until it is up, one to three minutes)
+   runtime_stop()                   end it and stop using GPU hours
+
+For a competition: kaggle_runtime_start(competition="<slug>") attaches its data under
+/kaggle/input/ (the user must have accepted the rules on the competition page). The
+kaggle_* tools (files, submit, submissions, leaderboard) work with the same login.
+
+Without the login, a Kaggle notebook can still be connected like Colab: call
+colab_runtime_start and have the user run its line in a Kaggle notebook with
+Internet switched on."""
     if platform == "huggingface":
         return f"""\
 Connect Hugging Face (rented CPU/GPU machines, billed per minute). One-time setup:
@@ -85,7 +90,7 @@ Connect Hugging Face (rented CPU/GPU machines, billed per minute). One-time setu
    (Alternative: set the HF_TOKEN environment variable for the AI client.)
 3. Renting needs credits or a payment method: https://huggingface.co/settings/billing
 
-There is nothing to paste into a notebook. Then the assistant can:
+Then the assistant can:
    hf_whoami                      check the login and whether the account can pay
    hf_hardware                    list machine types and prices
    hf_job_launch(script, run_name, flavor, timeout)

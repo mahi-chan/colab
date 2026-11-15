@@ -205,32 +205,38 @@ def register(mcp):
     # -- connection ---------------------------------------------------------
     @mcp.tool()
     @hf_jobs.hf_errors
-    def connect_runtime(url: str = "", token: str = "", hf_auth: bool = False) -> str:
-        """Connect to (or re-attach to) a Jupyter runtime: Colab, Kaggle, or a Hugging Face Space.
+    def connect_runtime(url: str = "", token: str = "", hf_auth: bool = False,
+                        wait_seconds: int = 60) -> str:
+        """Connect to (or re-attach to) the runtime. Call it with no arguments in most cases.
 
-        Pass the url/token printed by the bootstrap cell, or leave blank to use the
-        JUPYTER_URL / JUPYTER_TOKEN environment variables. Safe to call every session —
-        it re-attaches to an already-running kernel when one exists.
-        (For a machine rented with hf_runtime_start, call hf_runtime_connect instead.)
+        With no arguments it does the right thing: it finds the Colab/Kaggle session just
+        started with colab_runtime_start / kaggle_runtime_start (waiting up to
+        ``wait_seconds`` for it), or re-attaches to the runtime used before. Safe to call
+        in every new session. (For a machine rented with hf_runtime_start, call
+        hf_runtime_connect instead.)
 
-        hf_auth: set True for a JupyterLab running in a Hugging Face Space
-                 (url "https://<user>-<space>.hf.space", token = the Space's JUPYTER_TOKEN);
-                 your Hugging Face token is then sent too, as private Spaces require.
+        url, token: only for connecting by hand to a Jupyter server whose address and
+                    token you were given.
+        hf_auth: with url/token, set True for a JupyterLab running in a Hugging Face Space
+                 (url "https://<user>-<space>.hf.space", token = the Space's JUPYTER_TOKEN).
         """
+        from . import sessions
+
         remember = {}
         if url:
             bearer = hf.token() if hf_auth else ""
             rs.jupyter.configure(url, token or config.JUPYTER_TOKEN, bearer=bearer)
             if hf_auth:
                 remember["auth"] = "hf"
-        elif rs.jupyter.bearer:
+        elif sessions.pending():
+            return sessions.connect_pending(connect_impl, wait_seconds)
+        else:
             remember = {k: v for k, v in rs.store.get_kernel().items()
-                        if k in ("auth", "nonce", "job_id")}
+                        if k in ("auth", "nonce", "job_id", "pair_code", "platform")}
         if not rs.jupyter.connected:
-            return ("No runtime configured. Colab/Kaggle: run the bootstrap cell, then either "
-                    "call connect_runtime(url='https://...trycloudflare.com', token='...') "
-                    "or set JUPYTER_URL / JUPYTER_TOKEN in the environment. "
-                    "Hugging Face: call hf_runtime_start, then hf_runtime_connect.")
+            return ("No runtime yet. Start one: kaggle_runtime_start (Kaggle, automatic), "
+                    "colab_runtime_start (Colab, one pasted line), or hf_runtime_start "
+                    "(Hugging Face, rented). setup_guide explains each.")
         return connect_impl(**remember)
 
     @mcp.tool()

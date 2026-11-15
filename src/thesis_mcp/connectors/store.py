@@ -3,7 +3,8 @@
 This is what makes the server survive ``/clear`` and Claude Code restarts: the
 remote kernel (or Hugging Face job) keeps running in the cloud, and this file
 remembers its id + the runs we launched so a fresh session can re-attach instead
-of starting over. It never holds a secret.
+of starting over. It never holds an account credential; the only sensitive value is
+the one-time pairing code of a Colab/Kaggle session, and the file is private to the user.
 """
 
 import json
@@ -34,6 +35,10 @@ class RunStore:
         tmp = self.path + ".tmp"
         with open(tmp, "w") as f:
             json.dump(self.data, f, indent=2)
+        try:
+            os.chmod(tmp, 0o600)  # it can hold a session's one-time pairing code
+        except OSError:
+            pass
         os.replace(tmp, self.path)
 
     # -- kernel / connection ------------------------------------------------
