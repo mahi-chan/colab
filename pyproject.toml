@@ -1,11 +1,13 @@
 [project]
 name = "thesis-mcp"
-version = "0.1.0"
-description = "MCP server that drives a Google Colab / Kaggle runtime for ML thesis work (reinforcement learning & computer vision)."
+version = "0.2.0"
+description = "MCP server that runs ML work (RL, CV, LLM fine-tuning, competitions) on Google Colab, Kaggle and rented Hugging Face GPUs."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
 dependencies = [
+    "huggingface-hub>=2.4,<3",
+    "matplotlib>=3.7",
     "mcp[cli]>=1.2.0,<2",
     "requests>=2.31",
     "websocket-client>=1.7",
@@ -23,5 +25,16 @@ packages = ["src/thesis_mcp"]
 
 [dependency-groups]
 dev = [
+    "ipykernel>=6.29",
+    "jupyter-server>=2.14",
     "pytest>=8.0",
 ]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 110
+
+[tool.ruff.lint]
+select = ["E9", "F", "B"]
